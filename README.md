@@ -14,6 +14,7 @@ Natywna aplikacja mobilna na system Android pełniąca funkcję inteligentnego a
 * **Zaawansowany Anagramator & Scraping:** Sprawdzanie dłuższych wyrazów oraz generowanie pełnych anagramów w czasie rzeczywistym poprzez integrację (scrapowanie) z oficjalnym serwisem Polskiej Federacji Scrabble (PFS).
 * **Moduł Timera (Eco Mode):** Wbudowany, precyzyjny minutnik szachowy/scrabblowy dla graczy, wyposażony w tryb oszczędzania energii zapobiegający drenażowi baterii podczas długich partii.
 * **Lokalna Historia (Room DB):** Automatyczne zapisywanie wyszukiwanych słów na urządzeniu, co ułatwia rozwiązywanie sporów w późniejszych etapach gry.
+* **Animacje Lotti:** Zaawansowane animacje poprawiające przyjemność korzystania z aplikacji, stworzone specjalnie na potrzeby Arbitrello.
 
 ## 🛠️ Architektura & Tech Stack
 
