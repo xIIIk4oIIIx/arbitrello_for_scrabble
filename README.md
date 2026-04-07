@@ -29,7 +29,7 @@ Aplikacja została zbudowana w oparciu o czystą architekturę (Clean Architectu
 1. Pobierz środowisko [Android Studio](https://developer.android.com/studio).
 2. Sklonuj to repozytorium:
    ```bash
-   git clone [https://github.com/TwojNick/arbitrello-app.git](https://github.com/TwojNick/arbitrello-app.git)
+   git clone [https://github.com/xIIIk4oIIIx/arbitrello_for_scrabble.git](https://github.com/xIIIk4oIIIx/arbitrello_for_scrabble.git) 
 3.  Otwórz projekt w Android Studio i poczekaj na zakończenie synchronizacji Gradle.
 4.  Uruchom aplikację na podłączonym urządzeniu z Androidem lub za pomocą wbudowanego emulatora (AVD).
 
