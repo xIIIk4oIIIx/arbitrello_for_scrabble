@@ -1,0 +1,33 @@
+{
+  "watchFolder": "./",
+  "outputFile": "context_Arbitrello.txt",
+  "allowedExtensions": [
+    ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".css",
+    ".html",
+    ".json",
+    ".py",
+    ".java",
+    ".md",
+    ".kt",
+    ".xml",
+    ".gradle",
+    ".properties",
+    ".toml"
+  ],
+  "ignorePatterns": [
+    "node_modules",
+    ".git",
+    ".next",
+    "dist",
+    "build",
+    "package-lock.json",
+    "yarn.lock",
+    "context_Arbitrello.txt",
+    ".idea",
+    ".gradle"
+  ]
+}

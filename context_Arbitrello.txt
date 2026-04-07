@@ -1,0 +1,3873 @@
+--- PROJECT CONTEXT GENERATED AT 11.01.2026, 21:07:57 ---
+
+// --- Configuration used: watcher.config.json ---
+{
+  "watchFolder": "./",
+  "outputFile": "context_Arbitrello.txt",
+  "allowedExtensions": [
+    ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".css",
+    ".html",
+    ".json",
+    ".py",
+    ".java",
+    ".md",
+    ".kt",
+    ".xml",
+    ".gradle",
+    ".properties",
+    ".toml"
+  ],
+  "ignorePatterns": [
+    "node_modules",
+    ".git",
+    ".next",
+    "dist",
+    "build",
+    "package-lock.json",
+    "yarn.lock",
+    "context_Arbitrello.txt",
+    ".idea",
+    ".gradle"
+  ]
+}
+
+
+// ==========================================
+// --- File: app/src/androidTest/java/com/k4o/arbitrello/ExampleInstrumentedTest.kt ---
+// ==========================================
+
+package com.k4o.arbitrello
+
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.ext.junit.runners.AndroidJUnit4
+
+import org.junit.Test
+import org.junit.runner.RunWith
+
+import org.junit.Assert.*
+
+/**
+ * Instrumented test, which will execute on an Android device.
+ *
+ * See [testing documentation](http://d.android.com/tools/testing).
+ */
+@RunWith(AndroidJUnit4::class)
+class ExampleInstrumentedTest {
+    @Test
+    fun useAppContext() {
+        // Context of the app under test.
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        assertEquals("com.k4o.arbitrello", appContext.packageName)
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/AndroidManifest.xml ---
+// ==========================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <application
+        android:name=".ArbitrelloApp"
+        android:allowBackup="true"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        android:fullBackupContent="@xml/backup_rules"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Arbitrello"
+        tools:targetApi="31">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.Arbitrello">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+
+</manifest>
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/ArbitrelloApp.kt ---
+// ==========================================
+
+package com.k4o.arbitrello
+
+import android.app.Application
+import dagger.hilt.android.HiltAndroidApp
+
+@HiltAndroidApp
+class ArbitrelloApp : Application()
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/data/local/AppDatabase.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.data.local
+
+import androidx.room.Database
+import androidx.room.RoomDatabase
+
+/**
+ * Główna klasa bazy danych aplikacji.
+ */
+@Database(
+    entities = [WordEntity::class],
+    version = 1,
+    exportSchema = false
+)
+abstract class AppDatabase : RoomDatabase() {
+    abstract fun wordDao(): WordDao
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/data/local/WordDao.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.data.local
+
+import androidx.room.Dao
+import androidx.room.Insert
+import androidx.room.OnConflictStrategy
+import androidx.room.Query
+import kotlinx.coroutines.flow.Flow
+
+/**
+ * Interfejs DAO dla operacji na historii wyszukiwania słów.
+ */
+@Dao
+interface WordDao {
+
+    /**
+     * Wstawia słowo do historii. W przypadku konfliktu (to samo słowo) zastępuje istniejący wpis
+     * w celu aktualizacji znacznika czasu.
+     */
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertWord(word: WordEntity)
+
+    /**
+     * Zwraca 10 najnowszych wpisów z historii wyszukiwania posortowanych chronologicznie (DESC).
+     * Ograniczenie do 10 rekordów służy zachowaniu wydajności i czystości interfejsu.
+     */
+    @Query("SELECT * FROM search_history ORDER BY timestamp DESC LIMIT 10")
+    fun getAllWords(): Flow<List<WordEntity>>
+
+    /**
+     * Czyści całą historię wyszukiwania.
+     */
+    @Query("DELETE FROM search_history")
+    suspend fun clearHistory()
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/data/local/WordEntity.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.data.local
+
+import androidx.room.Entity
+import androidx.room.PrimaryKey
+
+/**
+ * Encja bazy danych Room reprezentująca wpis w historii wyszukiwania słów.
+ */
+@Entity(tableName = "search_history")
+data class WordEntity(
+    @PrimaryKey val checkedWord: String,
+    val isValid: Boolean,
+    val timestamp: Long
+)
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/data/mapper/WordMapper.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.data.mapper
+
+import com.k4o.arbitrello.data.local.WordEntity
+import com.k4o.arbitrello.model.ArbiterResult
+
+object WordMapper {
+
+    fun toDomain(entity: WordEntity): ArbiterResult {
+        return ArbiterResult(
+            isValid = entity.isValid,
+            checkedWord = entity.checkedWord,
+            timestamp = entity.timestamp
+        )
+    }
+
+    fun toEntity(domain: ArbiterResult): WordEntity {
+        return WordEntity(
+            checkedWord = domain.checkedWord,
+            isValid = domain.isValid,
+            timestamp = domain.timestamp
+        )
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/data/repository/WordRepositoryImpl.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.data.repository
+
+import com.k4o.arbitrello.data.local.WordDao
+import com.k4o.arbitrello.data.mapper.WordMapper
+import com.k4o.arbitrello.remote.PfsService
+import com.k4o.arbitrello.model.ArbiterResult
+import com.k4o.arbitrello.domain.repository.WordRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import javax.inject.Inject
+
+/**
+ * Implementacja repozytorium słów integrująca lokalną bazę danych (WordDao)
+ * oraz zewnętrzny serwis PFS (PfsService).
+ */
+class WordRepositoryImpl @Inject constructor(
+    private val wordDao: WordDao,
+    private val pfsService: PfsService
+) : WordRepository {
+
+    override suspend fun checkWord(word: String): Result<ArbiterResult> {
+        return pfsService.checkWords(word)
+    }
+
+    override fun getHistory(): Flow<List<ArbiterResult>> {
+        return wordDao.getAllWords().map { entities ->
+            entities.map { WordMapper.toDomain(it) }
+        }
+    }
+
+    override suspend fun clearHistory() {
+        wordDao.clearHistory()
+    }
+
+    override suspend fun saveResult(result: ArbiterResult) {
+        val entity = WordMapper.toEntity(result)
+        wordDao.insertWord(entity)
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/di/DatabaseModule.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.di
+
+import android.content.Context
+import androidx.room.Room
+import com.k4o.arbitrello.data.local.AppDatabase
+import com.k4o.arbitrello.data.local.WordDao
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object DatabaseModule {
+
+    private const val DATABASE_NAME = "arbitrello_db"
+
+    @Provides
+    @Singleton
+    fun provideAppDatabase(
+        @ApplicationContext context: Context
+    ): AppDatabase {
+        return Room.databaseBuilder(
+            context,
+            AppDatabase::class.java,
+            DATABASE_NAME
+        ).build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideWordDao(database: AppDatabase): WordDao {
+        return database.wordDao()
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/di/NetworkModule.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.di
+
+import com.k4o.arbitrello.remote.JsoupPfsService
+import com.k4o.arbitrello.remote.PfsService
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+@Module
+@InstallIn(SingletonComponent::class)
+object NetworkModule {
+
+    @Provides
+    @Singleton
+    fun providePfsService(): PfsService {
+        return JsoupPfsService()
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/di/RepositoryModule.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.di
+
+import com.k4o.arbitrello.data.repository.WordRepositoryImpl
+import com.k4o.arbitrello.domain.repository.WordRepository
+import dagger.Binds
+import dagger.Module
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import javax.inject.Singleton
+
+/**
+ * Moduł Hilt odpowiedzialny za wiązanie implementacji repozytoriów z ich interfejsami.
+ */
+@Module
+@InstallIn(SingletonComponent::class)
+abstract class RepositoryModule {
+
+    @Binds
+    @Singleton
+    abstract fun bindWordRepository(
+        wordRepositoryImpl: WordRepositoryImpl
+    ): WordRepository
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/domain/repository/WordRepository.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.domain.repository
+
+import com.k4o.arbitrello.model.ArbiterResult
+import kotlinx.coroutines.flow.Flow
+
+/**
+ * Interfejs repozytorium odpowiedzialnego za weryfikację poprawności słów.
+ */
+interface WordRepository {
+    /**
+     * Sprawdza, czy podane słowo jest dopuszczalne w grze.
+     * Wykorzystuje hierarchię źródeł: słownik lokalny, cache sesji, serwis zewnętrzny PFS.
+     */
+    suspend fun checkWord(word: String): Result<ArbiterResult>
+
+    /**
+     * Pobiera historię sprawdzeń z lokalnej bazy danych.
+     */
+    fun getHistory(): Flow<List<ArbiterResult>>
+
+    /**
+     * Czyści całą historię wyszukiwania w bazie danych.
+     */
+    suspend fun clearHistory()
+
+    /**
+     * Zapisuje wynik sprawdzenia do historii.
+     */
+    suspend fun saveResult(result: ArbiterResult)
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/domain/usecase/CheckWordUseCase.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.domain.usecase
+
+import com.k4o.arbitrello.domain.repository.WordRepository
+import com.k4o.arbitrello.model.ArbiterResult
+import javax.inject.Inject
+
+/**
+ * Use Case odpowiedzialny za weryfikację poprawności słowa.
+ * Deleguje zadanie do WordRepository, które zarządza priorytetami źródeł danych.
+ */
+class CheckWordUseCase @Inject constructor(
+    private val repository: WordRepository
+) {
+    /**
+     * Wykonuje sprawdzenie słowa za pośrednictwem repozytorium.
+     * Zwraca idiomatynczy obiekt Result zawierający ArbiterResult lub błąd.
+     */
+    suspend operator fun invoke(word: String): Result<ArbiterResult> {
+        return repository.checkWord(word)
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/MainActivity.kt ---
+// ==========================================
+
+package com.k4o.arbitrello
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.k4o.arbitrello.ui.ArbiterScreen
+import com.k4o.arbitrello.ui.MainViewModel
+import com.k4o.arbitrello.ui.theme.ArbitrelloTheme
+import com.k4o.arbitrello.ui.timer.TimerViewModel
+import dagger.hilt.android.AndroidEntryPoint
+
+@AndroidEntryPoint
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        )
+
+        setContent {
+            val mainViewModel: MainViewModel = hiltViewModel()
+            val timerViewModel: TimerViewModel = hiltViewModel()
+
+            ArbitrelloTheme {
+                ArbiterScreen(
+                    mainViewModel = mainViewModel,
+                    timerViewModel = timerViewModel
+                )
+            }
+        }
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/model/LocalDictionary.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.model
+
+/**
+ * Singleton przechowujący słowa w strukturze Set dla optymalnego wyszukiwania (O(1)).
+ * [cite_start]Usunięto logikę generowania list dla UI (getFlatList) w celu optymalizacji. [cite: 16, 17]
+ */
+object LocalDictionary {
+
+    val twoLetterWords: Set<String> = hashSetOf(
+        "AA", "AD", "AG", "AJ", "AL", "AM", "AR", "AS", "AT", "AU", "AŻ", "BA", "BE", "BI", "BO", "BU", "BY",
+        "CE", "CI", "CO", "DA", "DE", "DO", "DY", "EE", "EF", "EH", "EJ", "EL", "EŁ", "EM", "EN", "EŃ", "ER",
+        "ES", "EŚ", "ET", "EW", "EZ", "FA", "FE", "FI", "FU", "GĘ", "GI", "GO", "HA", "HE", "HĘ", "HI", "HM",
+        "HO", "HU", "ID", "II", "IL", "IŁ", "IM", "IN", "IW", "IŻ", "JA", "JĄ", "JE", "KA", "KI", "KO", "KU",
+        "LA", "LI", "LU", "MA", "MĄ", "ME", "MI", "MM", "MU", "MY", "NA", "NI", "NO", "NY", "OD", "OJ", "OK",
+        "OM", "ON", "OŃ", "OO", "OP", "OR", "OS", "OŚ", "OT", "OZ", "OŻ", "ÓD", "ÓS", "ÓW", "PA", "PE", "PI",
+        "PO", "RE", "RO", "SĄ", "SE", "SI", "SU", "TA", "TĄ", "TE", "TĘ", "TO", "TS", "TU", "TY", "UD", "UF",
+        "UL", "UT", "UU", "WE", "WU", "WY", "YY", "ZA", "ZE", "ŻE"
+    )
+
+    val threeLetterWords: Set<String> = hashSetOf(
+        "ABO", "ABY", "ACH", "ACZ", "AFT", "AGA", "AGĄ", "AGĘ", "AGI", "AGO", "AHA", "AIR", "AIS", "AJĆ", "AKK",
+        "AKR", "AKT", "ALA", "ALĄ", "ALB", "ALD", "ALE", "ALĘ", "ALF", "ALG", "ALI", "ALK", "ALO", "ALP", "ALT",
+        "AMF", "ANA", "ANI", "ANO", "ANS", "ANT", "ARA", "ARĄ", "ARB", "ARĘ", "ARF", "ARK", "ARO", "ARS", "ARY",
+        "ASA", "ASY", "ATA", "ATU", "ATY", "AUA", "AUĆ", "AUŁ", "AUR", "AUT", "AUU", "BAB", "BAĆ", "BAD", "BAI",
+        "BAJ", "BAK", "BAL", "BAŁ", "BAM", "BAN", "BAŃ", "BAO", "BAR", "BAS", "BAŚ", "BAT", "BAW", "BAZ", "BAŹ",
+        "BĄK", "BEE", "BEG", "BEJ", "BEK", "BEL", "BER", "BET", "BEZ", "BEŻ", "BĘC", "BIB", "BIĆ", "BID", "BIG",
+        "BIJ", "BIL", "BIŁ", "BIM", "BIO", "BIP", "BIS", "BIT", "BIW", "BIZ", "BLA", "BLE", "BOA", "BOB", "BOĆ",
+        "BOD", "BOI", "BOJ", "BOK", "BOL", "BOM", "BON", "BOP", "BOR", "BOT", "BOY", "BOŹ", "BÓB", "BÓG", "BÓJ",
+        "BÓL", "BÓR", "BRR", "BRU", "BRY", "BUC", "BUD", "BUF", "BUG", "BUK", "BUL", "BUŁ", "BUM", "BUR", "BUS",
+        "BUT", "BUU", "BUZ", "BUŹ", "BYĆ", "BYK", "BYŁ", "BYM", "BYŚ", "BYT", "BZU", "BZY", "BZZ", "CAB", "CAL",
+        "CAP", "CAR", "CEK", "CEL", "CEŁ", "CEN", "CEŃ", "CEP", "CER", "CES", "CEW", "CEZ", "CHA", "CHE", "CHI",
+        "CHU", "CIE", "CIĘ", "CII", "CIP", "CIS", "CIŹ", "CIŻ", "CLĄ", "CLE", "CLĘ", "CLI", "CŁA", "CŁO", "CŁU",
+        "CNA", "CNĄ", "CNE", "CNI", "CNY", "COB", "COD", "COL", "COŚ", "CÓR", "CÓŻ", "CUĆ", "CUD", "CUG", "CUM",
+        "CUP", "CYC", "CYG", "CYK", "CYM", "CYN", "CYT", "CZE", "CZI", "CZY", "ĆMA", "ĆMĄ", "ĆMĘ", "ĆMI", "ĆMO",
+        "ĆMY", "ĆPA", "ĆŚŚ", "DAĆ", "DAG", "DAJ", "DAL", "DAŁ", "DAM", "DAN", "DAŃ", "DAO", "DAR", "DAT", "DĄB",
+        "DĄĆ", "DĄŁ", "DĄS", "DĄŻ", "DBA", "DEJ", "DEK", "DEM", "DEN", "DER", "DES", "DĘB", "DĘĆ", "DĘG", "DIL",
+        "DIP", "DIS", "DIW", "DLA", "DMĄ", "DMĘ", "DNA", "DNĄ", "DNĘ", "DNI", "DNO", "DNU", "DNY", "DOG", "DOI",
+        "DOK", "DOL", "DOM", "DON", "DOŃ", "DOZ", "DÓB", "DÓJ", "DÓL", "DÓŁ", "DÓZ", "DRĄ", "DRĘ", "DRR", "DRY",
+        "DUB", "DUD", "DUG", "DUH", "DUK", "DUM", "DUO", "DUP", "DUR", "DUŚ", "DWA", "DWU", "DYB", "DYG", "DYL",
+        "DYM", "DYN", "DYŃ", "DYR", "DYZ", "ECH", "ECU", "EFA", "EFĄ", "EFĘ", "EFO", "EFY", "EGO", "EHE", "EHM",
+        "EIS", "EKO", "EKS", "ELF", "ELO", "EMO", "EMU", "END", "ENT", "EON", "ERA", "ERĄ", "ERB", "ERĘ", "ERG",
+        "ERO", "ERY", "ESA", "ESU", "ESY", "ETA", "ETĄ", "ETĘ", "ETO", "ETY", "EWA", "EWĄ", "EWE", "EWĘ", "EWO",
+        "EWY", "EZA", "EZĄ", "EZĘ", "EZO", "EZY", "ĘSI", "FAG", "FAI", "FAJ", "FAL", "FAŁ", "FAM", "FAN", "FAR",
+        "FAS", "FAZ", "FEE", "FEN", "FES", "FET", "FEZ", "FIG", "FIK", "FIL", "FIN", "FIS", "FIŚ", "FIT", "FIU",
+        "FIZ", "FIŹ", "FOĆ", "FOK", "FOL", "FON", "FOR", "FOS", "FOT", "FRR", "FRU", "FUG", "FUJ", "FUL", "FUM",
+        "FUN", "FUR", "FUS", "FUU", "FYL", "GAĆ", "GAD", "GAF", "GAG", "GAI", "GAJ", "GAL", "GAŁ", "GAM", "GAŃ",
+        "GAP", "GAR", "GAŚ", "GAY", "GAZ", "GAŻ", "GĄB", "GDY", "GEJ", "GEM", "GEN", "GES", "GEZ", "GĘB", "GĘG",
+        "GĘŚ", "GHI", "GIB", "GID", "GIE", "GIF", "GIG", "GIK", "GIL", "GIN", "GIŃ", "GIR", "GIS", "GIT", "GNA",
+        "GNĄ", "GNĘ", "GNU", "GOI", "GOJ", "GOL", "GON", "GOŃ", "GOT", "GÓJ", "GÓL", "GÓR", "GRA", "GRĄ", "GRĘ",
+        "GRO", "GRR", "GRU", "GRY", "GUB", "GUL", "GUM", "GUŃ", "GUR", "GUZ", "GZA", "GZĄ", "GZĘ", "GZI", "GZO",
+        "GZY", "GŻĄ", "GŻĘ", "HAF", "HAI", "HAJ", "HAK", "HAL", "HAN", "HAO", "HAS", "HAU", "HEC", "HEH", "HEJ",
+        "HEL", "HEM", "HEN", "HEP", "HER", "HET", "HIF", "HIP", "HIS", "HIT", "HIW", "HMM", "HOC", "HOI", "HOJ",
+        "HOL", "HOP", "HOR", "HOT", "HOY", "HUB", "HUF", "HUK", "HUN", "HUT", "HYC", "HYR", "HYŚ", "HYZ", "HYŹ",
+        "IBO", "ICH", "IDĄ", "IDĘ", "IDO", "IDU", "IDY", "IDŹ", "IGR", "IKR", "IKS", "IKT", "ILE", "ILU", "IŁU",
+        "IŁY", "IMA", "IMĄ", "IMĆ", "IMĘ", "INB", "IND", "INF", "INR", "IRG", "ISK", "IŚĆ", "ITR", "IWA", "IWĄ",
+        "IWĘ", "IWO", "IWY", "IZB", "IZM", "JAĆ", "JAD", "JAG", "JAJ", "JAK", "JAM", "JAP", "JAR", "JAŚ", "JAT",
+        "JAW", "JAZ", "JAŹ", "JĄĆ", "JĄŁ", "JEB", "JEJ", "JEM", "JEN", "JER", "JET", "JEŻ", "JĘĆ", "JĘK", "JĘT",
+        "JIG", "JIN", "JOD", "JOG", "JOJ", "JOL", "JOŁ", "JON", "JOR", "JOT", "JUG", "JUK", "JUM", "JUN", "JUR",
+        "JUS", "JUT", "JUZ", "JUŻ", "KAC", "KAI", "KAK", "KAŁ", "KAM", "KAN", "KAŃ", "GAP", "KAR", "KAS", "KAT",
+        "KAW", "KAŹ", "KAŻ", "KĄP", "KĄT", "KEG", "KEA", "KEĄ", "KEE", "KEĘ", "KEI", "KEJ", "KEK", "KEM", "KEO",
+        "KER", "KET", "KĘP", "KĘS", "KIC", "KIĆ", "KIE", "KIJ", "KIL", "KIŁ", "KIM", "KIN", "KIP", "KIR", "KIŚ",
+        "KIT", "KIŹ", "KLE", "KLO", "KŁA", "KŁY", "KOC", "KOĆ", "KOB", "KOD", "KOG", "KOI", "KOK", "KOL", "KOM",
+        "KOŃ", "KOP", "KOR", "KOS", "KOŚ", "KOT", "KÓJ", "KÓŁ", "KÓP", "KÓZ", "KPA", "KPI", "KPY", "KRA", "KRĄ",
+        "KRĘ", "KRO", "KRY", "KSI", "KTO", "KUB", "KUC", "KUĆ", "KUF", "KUI", "KUJ", "KUK", "KUL", "KUŁ", "KUM",
+        "KUN", "KUP", "KUR", "KUŚ", "KWA", "KWI", "KYU", "LAB", "LAĆ", "LAD", "LAG", "LAI", "LAK", "LAL", "LAŁ",
+        "LAM", "LAŃ", "LAR", "LAS", "LAT", "LAW", "LĄC", "LĄD", "LĄG", "LEC", "LEĆ", "LEG", "LEI", "LEJ", "LEK",
+        "LEN", "LEŃ", "LEP", "LES", "LEU", "LEW", "LEŹ", "LEŻ", "LĘG", "LĘK", "LIC", "LID", "LIG", "LIK", "LIM",
+        "LIN", "IP", "LIR", "LIS", "LIT", "LIZ", "LIŻ", "LNU", "LNY", "LOB", "LOG", "LOK", "LOL", "LOR", "LOS",
+        "LOT", "LÓD", "LÓŻ", "LUB", "LUD", "LUF", "LUJ", "LUK", "LUM", "LUN", "LUŃ", "LUO", "LUP", "LUR", "LUT",
+        "LUZ", "LWA", "LWI", "LWU", "LWY", "LŻĄ", "LŻĘ", "LŻY", "ŁAD", "ŁAJ", "ŁAŁ", "ŁAM", "ŁAN", "ŁAŃ", "ŁAP",
+        "ŁAŚ", "ŁAT", "ŁAW", "ŁAŹ", "ŁĄG", "ŁĄK", "ŁBA", "ŁBU", "ŁBY", "ŁEB", "ŁEZ", "ŁĘG", "ŁĘK", "ŁĘT", "ŁKA",
+        "ŁOI", "ŁOM", "ŁON", "ŁOŚ", "ŁÓJ", "ŁÓW", "ŁÓZ", "ŁÓŻ", "ŁUB", "ŁUG", "ŁUK", "ŁUN", "ŁUP", "ŁUT", "ŁUZ",
+        "ŁYD", "ŁYK", "ŁYP", "ŁZA", "ŁZĄ", "ŁZĘ", "ŁZO", "ŁZY", "ŁŻĄ", "ŁŻE", "ŁŻĘ", "MAC", "MAĆ", "MAD", "MAG",
+        "MAI", "MAJ", "MAK", "MAM", "MAN", "MAŃ", "MAP", "MAR", "MAS", "MAT", "MAU", "MAŹ", "MAŻ", "MĄĆ", "MĄK",
+        "MĄT", "MĄŻ", "MEE", "MEH", "MEJ", "MEL", "MEM", "MEN", "MER", "MES", "MET", "MEW", "MĘT", "MHM", "MIĘ",
+        "MIG", "MIK", "MIL", "MIM", "MIN", "MIŃ", "MIR", "MIS", "MIŚ", "MIT", "MNĄ", "MNĘ", "MOA", "MOB", "MOC",
+        "MOD", "MOI", "MOL", "MON", "MOP", "MOR", "MÓC", "MÓD", "MÓJ", "MÓL", "MÓR", "MÓW", "MÓŻ", "MRĄ", "MRĘ",
+        "MRR", "MRU", "MUC", "MUF", "MUL", "MUŁ", "MUN", "MUR", "MUS", "MUŚ", "MUU", "MUZ", "MYC", "MYĆ", "MYJ",
+        "MYK", "MYL", "MYŁ", "MYM", "MYT", "MŻĄ", "MŻĘ", "MŻY", "NAĆ", "NAD", "NAJ", "NAM", "NAŃ", "NAP", "NAR",
+        "NAS", "NAT", "NAW", "NEF", "NEK", "NEM", "NEP", "NER", "NET", "NĘĆ", "NĘK", "NIĄ", "NIC", "NIĆ", "NIE",
+        "NIL", "NIM", "NIP", "NIT", "NIW", "NIŻ", "NOC", "NOK", "NOM", "NON", "NOR", "NOS", "NOŚ", "NOT", "NOŻ",
+        "NÓG", "NÓW", "NÓŹ", "NÓŻ", "NUĆ", "NUD", "NUL", "NUR", "NUT", "NUŻ", "NYG", "NYŻ", "OAZ", "OBA", "OBI",
+        "OBŁ", "OBU", "OBY", "OCH", "OĆM", "ODA", "ODĄ", "ODE", "ODĘ", "ODM", "ODO", "ODR", "ODY", "OES", "OFF",
+        "OGI", "OGR", "OHM", "OHO", "OJĆ", "OKA", "OKI", "OKO", "OKR", "OKU", "OLE", "OLS", "OMA", "OMY", "ONA",
+        "ONĄ", "ONE", "ONI", "ONO", "OPA", "OPU", "OPY", "ORA", "ORD", "ORF", "ORK", "ORO", "ORT", "ORU", "ORZ",
+        "OSA", "OSĄ", "OSĘ", "OSI", "OSM", "OSO", "OSP", "OSY", "OŚĆ", "OTO", "OUT", "OWA", "OWĄ", "OWE", "OWI",
+        "OWO", "OZU", "OZY", "ÓCZ", "PAC", "PAĆ", "PAD", "PAF", "PAI", "PAJ", "PAK", "PAL", "PAŁ", "PAM", "PAN",
+        "PAŃ", "PAP", "PAR", "PAS", "PAŚ", "PAT", "PAW", "PAŹ", "PĄK", "PĄS", "PEN", "PEL", "PEŁ", "PER", "PET",
+        "PĘD", "PĘK", "PĘT", "PĘZ", "PFE", "PFF", "PFU", "PHI", "PHO", "PHU", "PHY", "PIA", "PIC", "PIĆ", "PIF",
+        "PII", "PIJ", "PIK", "PIL", "PIŁ", "PIN", "PIP", "PIŚ", "PIT", "PIW", "PLE", "PŁA", "PŁO", "PŁU", "PNĄ",
+        "PNĘ", "PNI", "POĆ", "POD", "POI", "POŃ", "POP", "POR", "POT", "PÓJ", "PÓL", "PÓŁ", "PÓR", "PÓZ", "PRĄ",
+        "PRĘ", "PRO", "PRR", "PSA", "PSI", "PSS", "PST", "PSU", "PSY", "PUB", "PUC", "PUD", "PUF", "PUH", "PUK",
+        "PUL", "PUM", "PUN", "PUP", "PUŚ", "PYK", "PYL", "PYŁ", "PYR", "PYŚ", "PYT", "PYZ", "RAB", "RAC", "RAD",
+        "RAF", "RAG", "RAI", "RAJ", "RAK", "RAM", "RAN", "RAŃ", "RAP", "RAS", "RAT", "RAZ", "RAŹ", "RĄB", "RĄK",
+        "RĄŚ", "REA", "REB", "RED", "REF", "REI", "REJ", "REK", "REL", "REM", "REN", "REO", "REP", "RET", "REW",
+        "REŻ", "RHO", "ROB", "ROD", "ROI", "ROK", "ROL", "ROŃ", "ROP", "ROS", "ROŚ", "ROT", "RÓB", "RÓD", "RÓG",
+        "RÓJ", "RÓL", "RÓW", "RÓŻ", "RUD", "RUF", "RUG", "RUI", "RUJ", "RUM", "RUN", "RUŃ", "RUR", "RUS", "RUT",
+        "RWA", "RWĄ", "RWĘ", "RWO", "RWY", "RYB", "RYĆ", "RYG", "RYJ", "RYK", "RYŁ", "RYM", "RYP", "RYS", "RYŚ",
+        "RYT", "RYZ", "RYŻ", "RŻĄ", "RŻE", "RŻĘ", "RŻY", "SAD", "SAG", "SAK", "SAL", "SAM", "SAŃ", "SAP", "SAZ",
+        "SĄD", "SĄG", "SEC", "SEM", "SEN", "SEP", "SER", "SET", "SĘK", "SĘP", "SIA", "SIĄ", "SIC", "SIE", "SIĘ",
+        "SIL", "SIŁ", "SIM", "SIK", "SIO", "SIR", "SIT", "SIU", "SIW", "SKA", "SKI", "SNĄ", "SNĘ", "SNU", "SNY",
+        "SOB", "SOF", "SOI", "SOK", "SOL", "SOM", "SON", "SOS", "SOU", "SÓD", "SÓL", "SÓW", "SPA", "SPU", "SPY",
+        "SRA", "SRU", "SSĄ", "SSĘ", "STO", "STU", "SUB", "SUK", "SUM", "SUŃ", "SUR", "SUS", "SUT", "SUW", "SWA",
+        "SWĄ", "SWE", "SYĆ", "SYF", "SYK", "SYN", "SYP", "SYR", "SYT", "SZA", "SZU", "ŚLĄ", "ŚLE", "ŚLĘ", "ŚMO",
+        "ŚNI", "ŚPI", "TAB", "TAC", "TAF", "TAG", "TAI", "TAJ", "TAK", "TAL", "TAM", "TAN", "TAO", "TAR", "TAS",
+        "TAŚ", "TAU", "TAŻ", "TĄP", "TĄŻ", "TEJ", "TEK", "TEŁ", "TEN", "TER", "TET", "TEZ", "TEŻ", "TĘP", "TĘŻ",
+        "TFU", "TIK", "TIP", "TIR", "TKA", "TLĄ", "TLE", "TLĘ", "TLI", "TŁA", "TŁO", "TŁU", "TNĄ", "TNĘ", "TOĆ",
+        "TOG", "TOK", "TOM", "TON", "TOŃ", "TOP", "TOR", "TOS", "TOY", "TOŻ", "TÓG", "TRA", "TRĄ", "TRĘ", "TRI",
+        "TRR", "TRY", "TSS", "TUB", "TUF", "TUI", "TUJ", "TUK", "TUL", "TUM", "TUP", "TUR", "TUT", "TUZ", "TUŻ",
+        "TWA", "TWĄ", "TWE", "TYĆ", "TYJ", "TYK", "TYŁ", "TYM", "TYN", "TYP", "TYŚ", "TYT", "UCH", "UCZ", "UDA",
+        "UDO", "UDU", "UED", "UFA", "UFF", "UFO", "UHA", "UHM", "UHU", "UJE", "UJM", "UKR", "ULA", "ULE", "ULG",
+        "ULI", "ULU", "ULW", "UMB", "UPS", "URN", "UST", "UTA", "UTĄ", "UTĘ", "UTO", "UTY", "UZD", "WAB", "WAD",
+        "WAG", "WAL", "WAŁ", "WAM", "WAN", "WAR", "WAS", "WAT", "WAZ", "WAŻ", "WĄS", "WĄŻ", "WDA", "WEB", "WEK",
+        "WEN", "WEŃ", "WEP", "WET", "WEŹ", "WĘD", "WĘZ", "WIC", "WIĆ", "WID", "WIE", "WIG", "WIJ", "WIŁ", "WIN",
+        "WIŃ", "WIO", "WIR", "WIŚ", "WIZ", "WOJ", "WOK", "WON", "WOŃ", "WOW", "WOŹ", "WÓD", "WÓL", "WÓŁ", "WÓR",
+        "WÓZ", "WÓŹ", "WRĄ", "WRE", "WRĘ", "WRR", "WSI", "WTE", "WUJ", "WYĆ", "WYG", "WYJ", "WYK", "WYŁ", "WYR",
+        "WYZ", "WYŻ", "YAM", "YHM", "YHY", "YIN", "ZAD", "ZAŃ", "ZAŚ", "ZĄB", "ZDA", "ZEK", "ZEŁ", "ZEN", "ZEŃ",
+        "ZER", "ZET", "ZEW", "ZEZ", "ZĘZ", "ZIM", "ZIN", "ZIP", "ZIU", "ZJE", "ZŁA", "ZŁĄ", "ZŁE", "ZŁO", "ZŁU",
+        "ZŁY", "ZNA", "ZOL", "ZON", "ZOO", "ZUP", "ZWĄ", "ZWĘ", "ZWU", "ZWY", "ZYS", "ZZA", "ŹGA", "ŹLE", "ŹLI",
+        "ŻAB", "ŻAK", "ŻAL", "ŻAR", "ŻĄĆ", "ŻĄŁ", "ŻĄP", "ŻEL", "ŻEN", "ŻEŃ", "ŻER", "ŻET", "ŻĘĆ", "ŻGA", "ŻNĄ",
+        "ŻNĘ", "ŻON", "ŻRĄ", "ŻRE", "ŻRĘ", "ŻUĆ", "ŻUJ", "ŻUK", "ŻUL", "ŻUŁ", "ŻUP", "ŻUR", "ŻYĆ", "ŻYD", "ŻYJ",
+        "ŻYŁ", "ŻYR", "ŻYT", "ŻYW"
+    )
+
+    /**
+     * Sprawdza, czy słowo znajduje się w słowniku 2- lub 3-literówek (używa Set.contains -> O(1)).
+     */
+    fun contains(word: String): Boolean {
+        val upperWord = word.uppercase()
+        return twoLetterWords.contains(upperWord) || threeLetterWords.contains(upperWord)
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/model/ScrabbleModels.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.model
+
+/**
+ * Wynik sprawdzenia poprawności słowa przez Arbiter PFS.
+ */
+data class ArbiterResult(
+    val isValid: Boolean,
+    val checkedWord: String,
+    val timestamp: Long = System.currentTimeMillis()
+)
+
+/**
+ * Wynik wyszukiwania anagramów przez Anagramator PFS.
+ */
+data class AnagramResult(
+    val wordList: List<String>,
+    val info: String
+)
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/remote/JsoupPfsService.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.remote
+
+import com.k4o.arbitrello.model.AnagramResult
+import com.k4o.arbitrello.model.ArbiterResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import org.jsoup.Jsoup
+import java.util.regex.Pattern
+
+/**
+ * Implementacja serwisu PfsService wykorzystująca bibliotekę Jsoup do scrapowania strony PFS.
+ */
+class JsoupPfsService : PfsService {
+
+    private val mainUrl = "https://www.pfs.org.pl/osps_mobile.php"
+    private val apiUrl = "https://www.pfs.org.pl/files/php/osps_funkcje3.php"
+
+    private fun getCsrfToken(): String {
+        val mainDoc = Jsoup.connect(mainUrl).get()
+        val html = mainDoc.html()
+        val pattern = Pattern.compile("(?:sprawdz2|anagramuj2).*?['\"]([a-f0-9]{32})['\"]")
+        val matcher = pattern.matcher(html)
+
+        if (!matcher.find()) {
+            throw IllegalStateException("Nie znaleziono tokenu CSRF na stronie")
+        }
+
+        return matcher.group(1) ?: throw IllegalStateException("Błąd ekstrakcji tokenu")
+    }
+
+    override suspend fun checkWords(words: String): Result<ArbiterResult> = withContext(Dispatchers.IO) {
+        runCatching {
+            val csrfToken = getCsrfToken()
+
+            val responseDoc = Jsoup.connect(apiUrl)
+                .data("s", "spr")
+                .data("csrfKey", csrfToken)
+                .data("slowo_arbiter2", words)
+                .ignoreContentType(true)
+                .post()
+
+            val resultText = responseDoc.body().text().trim()
+            val isValid = resultText == "1"
+
+            ArbiterResult(isValid = isValid, checkedWord = words)
+        }
+    }
+
+    override suspend fun findAnagrams(letters: String): Result<AnagramResult> = withContext(Dispatchers.IO) {
+        runCatching {
+            val csrfToken = getCsrfToken()
+
+            val responseDoc = Jsoup.connect(apiUrl)
+                .data("s", "ana")
+                .data("csrfKey", csrfToken)
+                .data("slowo2", letters)
+                .ignoreContentType(true)
+                .post()
+
+            val responseText = responseDoc.body().text().trim()
+            val parts = responseText.split("|").map { it.trim() }.filter { it.isNotEmpty() }
+
+            if (parts.isEmpty()) {
+                return@runCatching AnagramResult(emptyList(), "Brak wyników")
+            }
+
+            val info = parts[0]
+            val wordList = if (parts.size > 1) parts.drop(1) else emptyList()
+
+            AnagramResult(wordList = wordList, info = info)
+        }
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/remote/PfsService.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.remote
+
+import com.k4o.arbitrello.model.AnagramResult
+import com.k4o.arbitrello.model.ArbiterResult
+
+/**
+ * Interfejs serwisu komunikującego się ze stroną Polskiej Federacji Scrabble.
+ */
+interface PfsService {
+
+    /**
+     * Sprawdza poprawność podanych słów (oddzielonych spacjami lub przecinkami).
+     */
+    suspend fun checkWords(words: String): Result<ArbiterResult>
+
+    /**
+     * Znajduje anagramy dla podanego zestawu liter.
+     */
+    suspend fun findAnagrams(letters: String): Result<AnagramResult>
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/ui/anagram/AnagramScreen.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.ui.anagram
+
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.airbnb.lottie.compose.*
+import com.k4o.arbitrello.R
+import com.k4o.arbitrello.ui.components.PopButton
+import com.k4o.arbitrello.ui.components.PopTextField
+import com.k4o.arbitrello.ui.theme.PopMint
+import com.k4o.arbitrello.ui.theme.PopSalmon
+import kotlinx.coroutines.delay
+
+/**
+ * AnagramScreen - moduł wyszukiwania anagramów zintegrowany z systemem Pop UI Arbitrello.
+ * Obsługuje insets (padding status baru i nawigacji) oraz haptykę.
+ */
+@Composable
+fun AnagramScreen(
+    viewModel: AnagramViewModel,
+    onBack: () -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    var inputLetters by remember { mutableStateOf("") }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val haptic = LocalHapticFeedback.current
+
+    // Obsługa zdarzeń haptycznych z ViewModelu
+    LaunchedEffect(Unit) {
+        viewModel.events.collect { event ->
+            when (event) {
+                is AnagramEvent.Success -> haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                is AnagramEvent.Error -> {
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    delay(100)
+                    haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                }
+            }
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .imePadding()
+            .padding(horizontal = 16.dp)
+    ) {
+        // --- NAGŁÓWEK (Styl Pop) ---
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(PopMint.copy(alpha = 0.1f))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "Powrót",
+                    tint = PopMint
+                )
+            }
+
+            Text(
+                text = "ANAGRAMATOR",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Black,
+                color = PopMint,
+                textAlign = TextAlign.Center
+            )
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        // --- INPUT I STEROWANIE ---
+        PopTextField(
+            value = inputLetters,
+            onValueChange = { inputLetters = it.filter { char -> char.isLetter() }.uppercase() },
+            label = "TWOJE LITERY",
+            placeholder = "NP. ABCDEFG",
+            imeAction = ImeAction.Search,
+            keyboardActions = KeyboardActions(onSearch = {
+                if (inputLetters.isNotBlank()) {
+                    viewModel.findAnagrams(inputLetters)
+                    keyboardController?.hide()
+                }
+            }),
+            onClear = { inputLetters = "" }
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        PopButton(
+            onClick = {
+                viewModel.findAnagrams(inputLetters)
+                keyboardController?.hide()
+            },
+            text = "SZUKAJ SŁÓW",
+            color = PopSalmon,
+            enabled = inputLetters.isNotBlank() && uiState !is AnagramUiState.Loading,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // --- OBSZAR WYNIKÓW ---
+        Box(modifier = Modifier.weight(1f)) {
+            when (val state = uiState) {
+                is AnagramUiState.Loading -> {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        val composition by rememberLottieComposition(LottieCompositionSpec.RawRes(R.raw.lottie_success))
+                        LottieAnimation(
+                            composition = composition,
+                            iterations = LottieConstants.IterateForever,
+                            modifier = Modifier.size(120.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "TASUJĘ LITERY...",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Black,
+                            color = PopMint,
+                            letterSpacing = 2.sp
+                        )
+                    }
+                }
+                is AnagramUiState.Success -> {
+                    if (state.result.wordList.isEmpty()) {
+                        EmptyStateDisplay()
+                    } else {
+                        Column {
+                            Text(
+                                text = state.result.info.uppercase(),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Black,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                                modifier = Modifier.padding(bottom = 12.dp, start = 4.dp)
+                            )
+
+                            LazyVerticalGrid(
+                                columns = GridCells.Fixed(3),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                contentPadding = PaddingValues(bottom = 16.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                itemsIndexed(state.result.wordList) { index, word ->
+                                    AnagramWordChip(word = word, index = index)
+                                }
+                            }
+                        }
+                    }
+                }
+                is AnagramUiState.Error -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = "UPS! COŚ POSZŁO NIE TAK",
+                            color = PopSalmon,
+                            fontWeight = FontWeight.Black,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = state.message,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = PopSalmon.copy(alpha = 0.7f),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+                else -> {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "WRZUĆ LITERY DO MASZYNY!",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Black,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.15f),
+                            textAlign = TextAlign.Center,
+                            letterSpacing = 1.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Chip reprezentujący znalezione słowo z animacją bounce i efektem 3D.
+ */
+@Composable
+fun AnagramWordChip(word: String, index: Int) {
+    val scale = remember { Animatable(0f) }
+
+    LaunchedEffect(word) {
+        delay(index * 30L) // Staggered delay dla efektu fali
+        scale.animateTo(
+            targetValue = 1f,
+            animationSpec = spring(
+                dampingRatio = Spring.DampingRatioMediumBouncy,
+                stiffness = Spring.StiffnessLow
+            )
+        )
+    }
+
+    Box(
+        modifier = Modifier
+            .graphicsLayer {
+                scaleX = scale.value
+                scaleY = scale.value
+            }
+            .height(44.dp),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        // Cień/Baza (Efekt 3D)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(PopMint.copy(alpha = 0.4f))
+        )
+        // Powierzchnia chipa
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(40.dp)
+                .offset(y = (-4).dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(PopMint),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = word,
+                color = Color.White,
+                fontWeight = FontWeight.Black,
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
+        }
+    }
+}
+
+/**
+ * Komponent wyświetlany w przypadku braku wyników anagramowania.
+ */
+@Composable
+fun EmptyStateDisplay() {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = "BRAK SŁÓW!",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Black,
+            color = PopSalmon
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "NIC NIE UŁOŻYMY Z TYCH LITER...",
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+            textAlign = TextAlign.Center
+        )
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/ui/anagram/AnagramViewModel.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.ui.anagram
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.k4o.arbitrello.model.AnagramResult
+import com.k4o.arbitrello.remote.PfsService
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+sealed interface AnagramUiState {
+    object Idle : AnagramUiState
+    object Loading : AnagramUiState
+    data class Success(val result: AnagramResult) : AnagramUiState
+    data class Error(val message: String) : AnagramUiState
+}
+
+sealed class AnagramEvent {
+    object Success : AnagramEvent()
+    data class Error(val message: String) : AnagramEvent()
+}
+
+@HiltViewModel
+class AnagramViewModel @Inject constructor(
+    private val pfsService: PfsService
+) : ViewModel() {
+
+    private val _uiState = MutableStateFlow<AnagramUiState>(AnagramUiState.Idle)
+    val uiState: StateFlow<AnagramUiState> = _uiState.asStateFlow()
+
+    private val _events = MutableSharedFlow<AnagramEvent>()
+    val events: SharedFlow<AnagramEvent> = _events.asSharedFlow()
+
+    fun findAnagrams(letters: String) {
+        if (letters.isBlank()) return
+
+        viewModelScope.launch {
+            _uiState.value = AnagramUiState.Loading
+            pfsService.findAnagrams(letters.uppercase())
+                .onSuccess { result ->
+                    _uiState.value = AnagramUiState.Success(result)
+                    _events.emit(AnagramEvent.Success)
+                }
+                .onFailure { error ->
+                    val msg = error.localizedMessage ?: "Błąd wyszukiwania anagramów"
+                    _uiState.value = AnagramUiState.Error(msg)
+                    _events.emit(AnagramEvent.Error(msg))
+                }
+        }
+    }
+
+    fun clear() {
+        _uiState.value = AnagramUiState.Idle
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/ui/ArbiterScreen.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.ui
+
+import android.app.Activity
+import android.content.Intent
+import android.speech.RecognizerIntent
+import android.view.WindowManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.airbnb.lottie.LottieProperty
+import com.airbnb.lottie.SimpleColorFilter
+import com.airbnb.lottie.compose.*
+import com.k4o.arbitrello.R
+import com.k4o.arbitrello.model.ArbiterResult
+import com.k4o.arbitrello.ui.anagram.AnagramScreen
+import com.k4o.arbitrello.ui.anagram.AnagramViewModel
+import com.k4o.arbitrello.ui.history.HistoryScreen
+import com.k4o.arbitrello.ui.theme.*
+import com.k4o.arbitrello.ui.timer.TimerHeader
+import com.k4o.arbitrello.ui.timer.TimerViewModel
+import com.k4o.arbitrello.ui.timer.TimerSetupDialog
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+// Import zaimportowanego komponentu
+import com.k4o.arbitrello.ui.components.HistoryChip
+
+enum class ScreenMode {
+    ARBITER, ANAGRAM, HISTORY
+}
+
+@Composable
+fun ArbiterScreen(mainViewModel: MainViewModel, timerViewModel: TimerViewModel) {
+    var currentMode by rememberSaveable { mutableStateOf(ScreenMode.ARBITER) }
+    val anagramViewModel: AnagramViewModel = hiltViewModel()
+
+    val uiState by mainViewModel.arbiterUiState.collectAsStateWithLifecycle()
+    val timerState by timerViewModel.uiState.collectAsStateWithLifecycle()
+    val history by mainViewModel.history.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+
+    val listState = rememberLazyListState()
+
+    var showTimerSetup by remember { mutableStateOf(false) }
+    var showResultDelayed by remember { mutableStateOf(false) }
+
+    var overscrollTranslation by remember { mutableFloatStateOf(0f) }
+
+    val isAtStart by remember { derivedStateOf { listState.firstVisibleItemIndex == 0 } }
+    val isAtEnd by remember {
+        derivedStateOf {
+            val layoutInfo = listState.layoutInfo
+            val visibleItems = layoutInfo.visibleItemsInfo
+            if (visibleItems.isEmpty()) return@derivedStateOf false
+            val visibleHistorySize = if (history.size > 10) 10 else history.size
+            visibleItems.last().index == visibleHistorySize - 1
+        }
+    }
+
+    val nestedScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPostScroll(
+                consumed: Offset,
+                available: Offset,
+                source: NestedScrollSource
+            ): Offset {
+                if (available.x > 0 && isAtStart) {
+                    overscrollTranslation = (overscrollTranslation + available.x * 0.15f).coerceIn(-40f, 40f)
+                } else if (available.x < 0 && isAtEnd) {
+                    overscrollTranslation = (overscrollTranslation + available.x * 0.15f).coerceIn(-40f, 40f)
+                }
+                return super.onPostScroll(consumed, available, source)
+            }
+        }
+    }
+
+    LaunchedEffect(listState.isScrollInProgress) {
+        if (!listState.isScrollInProgress) {
+            animate(
+                initialValue = overscrollTranslation,
+                targetValue = 0f,
+                animationSpec = spring(
+                    dampingRatio = Spring.DampingRatioMediumBouncy,
+                    stiffness = 100f
+                )
+            ) { value, _ ->
+                overscrollTranslation = value
+            }
+        }
+    }
+
+    val animatedResetProgress by animateFloatAsState(
+        targetValue = if (uiState is ArbiterUiState.Idle) 0f else 1f,
+        animationSpec = tween(durationMillis = 3000, easing = LinearEasing),
+        label = "resetProgress"
+    )
+
+    val inputAlpha by animateFloatAsState(
+        targetValue = if (uiState is ArbiterUiState.Idle) 1f else 0f,
+        animationSpec = tween(400),
+        label = "inputAlpha"
+    )
+
+    DisposableEffect(Unit) {
+        val window = (context as? Activity)?.window
+        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose {
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    var textFieldValue by rememberSaveable(stateSaver = TextFieldValue.Saver) {
+        mutableStateOf(TextFieldValue(""))
+    }
+
+    val focusRequester = remember { FocusRequester() }
+    val scrollState = rememberScrollState()
+
+    val speechRecognizerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult(),
+        onResult = { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val spokenText = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.get(0) ?: ""
+                val filteredText = spokenText.filter { it.isLetter() }.uppercase()
+                textFieldValue = TextFieldValue(
+                    text = filteredText,
+                    selection = TextRange(filteredText.length)
+                )
+                mainViewModel.onArbiterInputChanged(filteredText)
+            }
+        }
+    )
+
+    LaunchedEffect(currentMode) {
+        if (currentMode == ScreenMode.ARBITER) {
+            focusRequester.requestFocus()
+        }
+    }
+
+    LaunchedEffect(history.firstOrNull()?.timestamp) {
+        if (history.isNotEmpty()) {
+            delay(100)
+            listState.animateScrollToItem(0)
+        }
+    }
+
+    LaunchedEffect(uiState) {
+        when (uiState) {
+            is ArbiterUiState.Idle -> {
+                showResultDelayed = false
+                if (currentMode == ScreenMode.ARBITER) focusRequester.requestFocus()
+            }
+            is ArbiterUiState.Loading -> {
+                showResultDelayed = true
+            }
+            is ArbiterUiState.Success, is ArbiterUiState.Error -> {
+                if (!showResultDelayed) showResultDelayed = true
+
+                when (val state = uiState) {
+                    is ArbiterUiState.Success -> {
+                        if (state.result.isValid) {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        } else {
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }
+                    }
+                    is ArbiterUiState.Error -> {
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    }
+                    else -> {}
+                }
+
+                delay(3200)
+
+                if (uiState !is ArbiterUiState.Idle) {
+                    textFieldValue = TextFieldValue("")
+                    mainViewModel.onArbiterInputChanged("")
+                }
+            }
+        }
+    }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "flashTransition")
+    val flashColor by infiniteTransition.animateColor(
+        initialValue = PopSalmon,
+        targetValue = Color.White,
+        animationSpec = infiniteRepeatable(
+            animation = tween(300, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "flashColor"
+    )
+
+    val targetBgColor = when {
+        timerState.isEcoMode -> Color.Black
+        timerState.isTimeUp -> flashColor
+        uiState is ArbiterUiState.Success -> {
+            val successState = uiState as ArbiterUiState.Success
+            if (successState.result.isValid) PopMint else PopSalmon
+        }
+        uiState is ArbiterUiState.Error -> Color(0xFFD63031)
+        else -> MaterialTheme.colorScheme.background
+    }
+
+    val animatedBgColor by animateColorAsState(
+        targetValue = targetBgColor,
+        animationSpec = tween(600),
+        label = "bgColor"
+    )
+
+    val systemBarColor = when {
+        timerState.isEcoMode -> Color.Black
+        timerState.isTimerVisible -> {
+            when {
+                timerState.isTimeUp -> PopSalmon
+                !timerState.isRunning -> Color.Gray
+                timerState.timeLeftMs < 10000 -> PopSalmon
+                else -> PopMint
+            }
+        }
+        else -> animatedBgColor
+    }
+
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (context as? Activity)?.window ?: return@SideEffect
+            window.statusBarColor = systemBarColor.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars =
+                if (timerState.isEcoMode) false else androidx.core.graphics.ColorUtils.calculateLuminance(systemBarColor.toArgb()) > 0.5
+        }
+    }
+
+    val contentColor by animateColorAsState(
+        targetValue = when {
+            timerState.isEcoMode -> Color.White
+            uiState is ArbiterUiState.Idle && !timerState.isTimeUp -> MaterialTheme.colorScheme.onBackground
+            else -> Color.White
+        },
+        label = "contentColor"
+    )
+
+    if (showTimerSetup) {
+        TimerSetupDialog(
+            initialEcoMode = timerState.isEcoMode,
+            onDismiss = { showTimerSetup = false },
+            onStart = { minutes, players, isEco ->
+                timerViewModel.setEcoMode(isEco)
+                timerViewModel.setupSession(minutes, players)
+                showTimerSetup = false
+            }
+        )
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(animatedBgColor)
+    ) {
+        this@Column.AnimatedVisibility(
+            visible = timerState.isTimerVisible,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            TimerHeader(timerViewModel)
+        }
+
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        ) {
+            AnimatedContent(
+                targetState = currentMode,
+                transitionSpec = {
+                    fadeIn(animationSpec = tween(300)) togetherWith fadeOut(animationSpec = tween(300))
+                },
+                label = "ModeSwitcher"
+            ) { mode ->
+                when (mode) {
+                    ScreenMode.HISTORY -> {
+                        HistoryScreen(
+                            history = history,
+                            onBack = { currentMode = ScreenMode.ARBITER },
+                            onClear = { mainViewModel.clearHistory() }
+                        )
+                    }
+                    ScreenMode.ANAGRAM -> {
+                        AnagramScreen(
+                            viewModel = anagramViewModel,
+                            onBack = { currentMode = ScreenMode.ARBITER }
+                        )
+                    }
+                    ScreenMode.ARBITER -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer { alpha = inputAlpha }
+                                .imePadding()
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .statusBarsPadding()
+                                    .padding(16.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                IconButton(
+                                    onClick = { currentMode = ScreenMode.ANAGRAM },
+                                    colors = IconButtonDefaults.iconButtonColors(
+                                        containerColor = contentColor.copy(alpha = 0.1f)
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AutoFixHigh,
+                                        contentDescription = "Anagramator",
+                                        tint = contentColor
+                                    )
+                                }
+
+                                IconButton(
+                                    onClick = { showTimerSetup = true },
+                                    colors = IconButtonDefaults.iconButtonColors(
+                                        containerColor = contentColor.copy(alpha = 0.1f)
+                                    )
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Build,
+                                        contentDescription = "Konfiguruj Timer",
+                                        tint = contentColor
+                                    )
+                                }
+                            }
+
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 24.dp)
+                                    .verticalScroll(scrollState),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Text(
+                                    text = "ARBITRELLO",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = contentColor.copy(alpha = 0.6f),
+                                    letterSpacing = 4.sp
+                                )
+
+                                Spacer(modifier = Modifier.height(24.dp))
+
+                                Box(contentAlignment = Alignment.Center) {
+                                    if (textFieldValue.text.isEmpty()) {
+                                        Text(
+                                            text = "WPISZ SŁOWO",
+                                            style = MaterialTheme.typography.displaySmall,
+                                            color = contentColor.copy(alpha = 0.3f),
+                                            fontWeight = FontWeight.Black
+                                        )
+                                    }
+
+                                    BasicTextField(
+                                        value = textFieldValue,
+                                        onValueChange = { newValue ->
+                                            if (uiState is ArbiterUiState.Idle) {
+                                                val filteredText = newValue.text.filter { it.isLetter() }.uppercase()
+                                                textFieldValue = newValue.copy(
+                                                    text = filteredText,
+                                                    selection = TextRange(filteredText.length)
+                                                )
+                                                mainViewModel.onArbiterInputChanged(filteredText)
+                                            }
+                                        },
+                                        modifier = Modifier
+                                            .focusRequester(focusRequester)
+                                            .fillMaxWidth(),
+                                        textStyle = MaterialTheme.typography.displaySmall.copy(
+                                            color = contentColor,
+                                            textAlign = TextAlign.Center,
+                                            fontWeight = FontWeight.Black
+                                        ),
+                                        cursorBrush = SolidColor(contentColor),
+                                        keyboardOptions = KeyboardOptions(
+                                            capitalization = KeyboardCapitalization.Characters,
+                                            imeAction = ImeAction.Done
+                                        ),
+                                        keyboardActions = KeyboardActions(
+                                            onDone = {
+                                                if (textFieldValue.text.isNotBlank()) {
+                                                    mainViewModel.checkWords(textFieldValue.text)
+                                                }
+                                            }
+                                        )
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Text(
+                                        text = "LUB POWIEDZ",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = contentColor.copy(alpha = 0.5f),
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Surface(
+                                        onClick = {
+                                            val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                                                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                                                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pl-PL")
+                                            }
+                                            speechRecognizerLauncher.launch(intent)
+                                        },
+                                        modifier = Modifier.size(64.dp),
+                                        shape = CircleShape,
+                                        color = Color.White.copy(alpha = 0.2f)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(
+                                                imageVector = Icons.Default.Mic,
+                                                contentDescription = "Dyktuj",
+                                                tint = Color.White,
+                                                modifier = Modifier.size(32.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(
+                                        brush = Brush.verticalGradient(
+                                            colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.1f))
+                                        )
+                                    )
+                                    .padding(bottom = 32.dp, top = 16.dp)
+                            ) {
+                                Column {
+                                    if (history.isNotEmpty()) {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 24.dp, vertical = 4.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = "OSTATNIE",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = contentColor.copy(alpha = 0.5f),
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            IconButton(
+                                                onClick = { currentMode = ScreenMode.HISTORY },
+                                                modifier = Modifier.size(24.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.History,
+                                                    contentDescription = "Pełna Historia",
+                                                    tint = contentColor.copy(alpha = 0.6f),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+
+                                        LazyRow(
+                                            state = listState,
+                                            contentPadding = PaddingValues(horizontal = 24.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            modifier = Modifier.nestedScroll(nestedScrollConnection)
+                                        ) {
+                                            itemsIndexed(
+                                                items = history.take(10),
+                                                key = { _, item -> "${item.checkedWord}_${item.timestamp}" }
+                                            ) { index, item ->
+                                                val popAnim = remember(item.timestamp) { Animatable(0f) }
+
+                                                LaunchedEffect(item.timestamp) {
+                                                    popAnim.animateTo(
+                                                        targetValue = 1f,
+                                                        animationSpec = spring(
+                                                            dampingRatio = 0.6f,
+                                                            stiffness = Spring.StiffnessMediumLow
+                                                        )
+                                                    )
+                                                }
+
+                                                val itemTranslationX by remember(index, history.size, overscrollTranslation) {
+                                                    derivedStateOf {
+                                                        when {
+                                                            overscrollTranslation > 0f -> if (index == 0) overscrollTranslation * 0.5f else overscrollTranslation
+                                                            overscrollTranslation < 0f -> if (index == (if (history.size > 10) 9 else history.size - 1)) overscrollTranslation * 0.5f else overscrollTranslation
+                                                            else -> 0f
+                                                        }
+                                                    }
+                                                }
+
+                                                HistoryChip(
+                                                    result = item,
+                                                    iconTint = if (item.isValid) PopMint else PopSalmon,
+                                                    modifier = Modifier
+                                                        .animateItem(
+                                                            fadeInSpec = null,
+                                                            fadeOutSpec = null,
+                                                            placementSpec = spring(
+                                                                dampingRatio = 0.8f,
+                                                                stiffness = Spring.StiffnessLow
+                                                            )
+                                                        )
+                                                        .graphicsLayer {
+                                                            scaleX = popAnim.value
+                                                            scaleY = popAnim.value
+                                                            alpha = popAnim.value
+                                                            translationX = itemTranslationX
+                                                        }
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            androidx.compose.animation.AnimatedVisibility(
+                visible = showResultDelayed && uiState !is ArbiterUiState.Idle,
+                enter = fadeIn(animationSpec = tween(400)),
+                exit = fadeOut(animationSpec = tween(400)),
+                modifier = Modifier.align(Alignment.Center)
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .imePadding(),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    when (val state = uiState) {
+                        is ArbiterUiState.Loading -> {
+                            Box(modifier = Modifier.size(160.dp), contentAlignment = Alignment.Center) {
+                                CircularProgressIndicator(
+                                    color = Color.White,
+                                    trackColor = Color.White.copy(alpha = 0.1f)
+                                )
+                            }
+                        }
+                        is ArbiterUiState.Success -> {
+                            ResultDisplay(
+                                word = state.result.checkedWord,
+                                isValid = state.result.isValid,
+                                color = animatedBgColor,
+                                progress = animatedResetProgress
+                            )
+                        }
+                        is ArbiterUiState.Error -> {
+                            ResultDisplay(
+                                word = textFieldValue.text,
+                                isValid = false,
+                                color = animatedBgColor,
+                                progress = animatedResetProgress,
+                                isErrorState = true
+                            )
+                        }
+                        else -> {}
+                    }
+                }
+            }
+
+            if (uiState !is ArbiterUiState.Idle) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable(enabled = false) {}
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ResultDisplay(
+    word: String,
+    isValid: Boolean,
+    color: Color,
+    progress: Float,
+    isErrorState: Boolean = false
+) {
+    var wordVisible by remember { mutableStateOf(false) }
+    var iconVisible by remember { mutableStateOf(false) }
+    var statusVisible by remember { mutableStateOf(false) }
+
+    val wordAlpha by animateFloatAsState(
+        targetValue = if (wordVisible) 1f else 0f,
+        animationSpec = tween(500),
+        label = "wordAlpha"
+    )
+    val iconAlpha by animateFloatAsState(
+        targetValue = if (iconVisible) 1f else 0f,
+        animationSpec = tween(500),
+        label = "iconAlpha"
+    )
+    val statusAlpha by animateFloatAsState(
+        targetValue = if (statusVisible) 1f else 0f,
+        animationSpec = tween(500),
+        label = "statusAlpha"
+    )
+
+    LaunchedEffect(isValid, isErrorState) {
+        wordVisible = false
+        iconVisible = false
+        statusVisible = false
+        delay(100)
+        wordVisible = true
+        delay(300)
+        iconVisible = true
+        delay(300)
+        statusVisible = true
+    }
+
+    val composition by rememberLottieComposition(
+        LottieCompositionSpec.RawRes(
+            if (isErrorState || !isValid) R.raw.lottie_error else R.raw.lottie_success
+        )
+    )
+
+    val bgFilter = remember(color) { SimpleColorFilter(color.toArgb()) }
+    val whiteFilter = remember { SimpleColorFilter(Color.White.toArgb()) }
+
+    val propAllWhite = rememberLottieDynamicProperty(LottieProperty.COLOR_FILTER, whiteFilter, "**")
+    val propError8 = rememberLottieDynamicProperty(LottieProperty.COLOR_FILTER, bgFilter, "Shape Layer 8", "**")
+    val propError9 = rememberLottieDynamicProperty(LottieProperty.COLOR_FILTER, bgFilter, "Shape Layer 9", "**")
+    val propSuccess4 = rememberLottieDynamicProperty(LottieProperty.COLOR_FILTER, bgFilter, "Shape Layer 4", "**")
+
+    val propertiesList = remember(isValid, isErrorState, propAllWhite, propError8, propError9, propSuccess4) {
+        mutableListOf<LottieDynamicProperty<*>>().apply {
+            add(propAllWhite)
+            if (isErrorState || !isValid) {
+                add(propError8)
+                add(propError9)
+            } else {
+                add(propSuccess4)
+            }
+        }
+    }
+
+    val dynamicProperties = rememberLottieDynamicProperties(*propertiesList.toTypedArray())
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            text = word.uppercase(),
+            style = MaterialTheme.typography.displayMedium,
+            fontWeight = FontWeight.Black,
+            color = Color.White,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer { alpha = wordAlpha }
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(160.dp)
+                .graphicsLayer { alpha = iconAlpha }
+        ) {
+            CircularProgressIndicator(
+                progress = { 1f - progress },
+                modifier = Modifier.matchParentSize(),
+                color = Color.White,
+                trackColor = Color.White.copy(alpha = 0.1f),
+                strokeWidth = 8.dp
+            )
+            if (iconVisible) {
+                LottieAnimation(
+                    composition = composition,
+                    iterations = 1,
+                    dynamicProperties = dynamicProperties,
+                    modifier = Modifier.size(160.dp)
+                )
+            }
+        }
+        Spacer(modifier = Modifier.height(24.dp))
+        Text(
+            text = when {
+                isErrorState -> "BŁĄD POŁĄCZENIA"
+                isValid -> "PRAWIDŁOWE"
+                else -> "NIEPRAWIDŁOWE"
+            },
+            style = MaterialTheme.typography.headlineMedium,
+            color = Color.White,
+            fontWeight = FontWeight.Black,
+            textAlign = TextAlign.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .graphicsLayer { alpha = statusAlpha }
+        )
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/ui/components/HistoryChip.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.ui.components
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import com.k4o.arbitrello.model.ArbiterResult
+
+@Composable
+fun HistoryChip(
+    result: ArbiterResult,
+    iconTint: Color,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        color = Color.White.copy(alpha = 0.15f),
+        shape = RoundedCornerShape(12.dp),
+        modifier = modifier
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (result.isValid) Icons.Default.CheckCircle else Icons.Default.Close,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(16.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = result.checkedWord,
+                style = MaterialTheme.typography.bodyMedium,
+                color = Color.White,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+fun FullHistoryIcon(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier
+            .size(40.dp),
+        color = Color.White.copy(alpha = 0.2f),
+        shape = CircleShape
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(CircleShape)
+                .clickable { onClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.History,
+                contentDescription = "Pełna historia",
+                tint = Color.White,
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/ui/components/PopComponents.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.ui.components
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.unit.dp
+import com.k4o.arbitrello.ui.theme.PopBlue
+import com.k4o.arbitrello.ui.theme.PopMint
+
+@Composable
+fun PopButton(
+    onClick: () -> Unit,
+    text: String,
+    modifier: Modifier = Modifier,
+    color: Color = PopMint,
+    enabled: Boolean = true
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val shadowColor = color.copy(alpha = 0.7f)
+    val verticalOffset = if (isPressed) 0.dp else (-4).dp
+
+    Box(
+        modifier = modifier
+            .height(56.dp)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                enabled = enabled,
+                onClick = onClick
+            ),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        // Shadow/Base layer
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(shadowColor)
+        )
+        // Top layer (Button face)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .offset(y = verticalOffset)
+                .clip(RoundedCornerShape(16.dp))
+                .background(if (enabled) color else Color.Gray),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = text,
+                color = Color.White,
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
+    }
+}
+
+@Composable
+fun PopTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    modifier: Modifier = Modifier,
+    placeholder: String = "",
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    imeAction: ImeAction = ImeAction.Default,
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
+    onClear: (() -> Unit)? = null
+) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+    ) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(label) },
+            placeholder = { Text(placeholder) },
+            shape = RoundedCornerShape(16.dp),
+            keyboardOptions = keyboardOptions.copy(imeAction = imeAction),
+            keyboardActions = keyboardActions,
+            trailingIcon = {
+                if (value.isNotEmpty() && onClear != null) {
+                    IconButton(onClick = onClear) {
+                        Icon(
+                            imageVector = Icons.Default.Clear,
+                            contentDescription = "Wyczyść tekst",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = PopBlue,
+                unfocusedBorderColor = Color.Transparent,
+                focusedContainerColor = MaterialTheme.colorScheme.surface,
+                unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                cursorColor = MaterialTheme.colorScheme.primary,
+                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        )
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/ui/history/HistoryScreen.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.ui.history
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material3.*
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.k4o.arbitrello.model.ArbiterResult
+import com.k4o.arbitrello.ui.theme.PopMint
+import com.k4o.arbitrello.ui.theme.PopSalmon
+
+/**
+ * Ekran pełnej historii wyszukiwań w stylu Pop UI.
+ */
+@Composable
+fun HistoryScreen(
+    history: List<ArbiterResult>,
+    onBack: () -> Unit,
+    onClear: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .navigationBarsPadding()
+            .padding(horizontal = 16.dp)
+    ) {
+        // --- NAGŁÓWEK (Styl Pop) ---
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(PopMint.copy(alpha = 0.1f))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ArrowBack,
+                    contentDescription = "Powrót",
+                    tint = PopMint
+                )
+            }
+
+            Text(
+                text = "HISTORIA",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Black,
+                color = PopMint,
+                textAlign = TextAlign.Center
+            )
+
+            IconButton(
+                onClick = onClear,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(PopSalmon.copy(alpha = 0.1f))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.DeleteSweep,
+                    contentDescription = "Wyczyść wszystko",
+                    tint = PopSalmon
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (history.isEmpty()) {
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "HISTORIA JEST PUSTA",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Black,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f),
+                    letterSpacing = 1.sp
+                )
+            }
+        } else {
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 24.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(
+                    items = history,
+                    key = { it.checkedWord + it.timestamp }
+                ) { result ->
+                    HistoryGridItem(
+                        result = result,
+                        modifier = Modifier.animateItem()
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Element siatki historii reprezentujący pojedyncze sprawdzone słowo.
+ */
+@Composable
+fun HistoryGridItem(
+    result: ArbiterResult,
+    modifier: Modifier = Modifier
+) {
+    val statusColor = if (result.isValid) PopMint else PopSalmon
+
+    Box(
+        modifier = modifier
+            .height(56.dp),
+        contentAlignment = Alignment.BottomCenter
+    ) {
+        // Cień / Podstawa (Efekt 3D Pop UI)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(statusColor.copy(alpha = 0.3f))
+        )
+        // Powierzchnia elementu
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+                .offset(y = (-4).dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(statusColor),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = result.checkedWord,
+                color = Color.White,
+                fontWeight = FontWeight.Black,
+                fontSize = 16.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+        }
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/ui/MainViewModel.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.ui
+
+import android.util.Log
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.k4o.arbitrello.BuildConfig
+import com.k4o.arbitrello.domain.repository.WordRepository
+import com.k4o.arbitrello.domain.usecase.CheckWordUseCase
+import com.k4o.arbitrello.model.ArbiterResult
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
+import javax.inject.Inject
+
+private const val TAG = "MainViewModel"
+
+sealed interface ArbiterUiState {
+    object Idle : ArbiterUiState
+    object Loading : ArbiterUiState
+    data class Success(val result: ArbiterResult) : ArbiterUiState
+    data class Error(val message: String) : ArbiterUiState
+}
+
+@OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
+@HiltViewModel
+class MainViewModel @Inject constructor(
+    private val checkWordUseCase: CheckWordUseCase,
+    private val wordRepository: WordRepository
+) : ViewModel() {
+
+    private val _arbiterUiState = MutableStateFlow<ArbiterUiState>(ArbiterUiState.Idle)
+    val arbiterUiState: StateFlow<ArbiterUiState> = _arbiterUiState.asStateFlow()
+
+    // Automatyczna synchronizacja z bazą danych Room (SSOT)
+    val history: StateFlow<List<ArbiterResult>> = wordRepository.getHistory()
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = emptyList()
+        )
+
+    private val _inputFlow = MutableStateFlow("")
+
+    init {
+        _inputFlow
+            .debounce(1500L)
+            .filter { it.isNotBlank() }
+            .distinctUntilChanged()
+            .flatMapLatest { query ->
+                flow {
+                    emit(ArbiterUiState.Loading)
+                    checkWordUseCase(query)
+                        .onSuccess { result ->
+                            viewModelScope.launch {
+                                delay(3700L)
+                                wordRepository.saveResult(result)
+                            }
+                            emit(ArbiterUiState.Success(result))
+                        }
+                        .onFailure { exception ->
+                            Log.e(TAG, "Error in checkWords for query: $query", exception)
+                            val errorMessage = if (BuildConfig.DEBUG) {
+                                exception.localizedMessage ?: "Błąd sprawdzania słowa"
+                            } else {
+                                "Problem z połączeniem lub stroną PFS"
+                            }
+                            emit(ArbiterUiState.Error(errorMessage))
+                        }
+                }
+            }
+            .onEach { state ->
+                _arbiterUiState.value = state
+            }
+            .launchIn(viewModelScope)
+    }
+
+    fun onArbiterInputChanged(text: String) {
+        val cleaned = text.trim().uppercase()
+        _inputFlow.value = cleaned
+        if (cleaned.isBlank()) {
+            _arbiterUiState.value = ArbiterUiState.Idle
+        }
+    }
+
+    fun checkWords(words: String) {
+        onArbiterInputChanged(words)
+    }
+
+    /**
+     * Czyści historię wyszukiwania w bazie danych.
+     */
+    fun clearHistory() {
+        viewModelScope.launch {
+            wordRepository.clearHistory()
+        }
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/ui/theme/Color.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.ui.theme
+
+import androidx.compose.ui.graphics.Color
+
+// Gamified Pop Palette
+val PopMint = Color(0xFF00C896)
+val PopSalmon = Color(0xFFFF6B6B)
+val PopCream = Color(0xFFF7F5F0)
+val PopBlue = Color(0xFF4D96FF)
+val PopDarkText = Color(0xFF2D3436)
+val PopLightText = Color(0xFFF0F0F0)
+val PopSurface = Color(0xFFFFFFFF)
+val PopDarkSurface = Color(0xFF252A2C)
+
+// Legacy colors
+val Purple80 = Color(0xFFD0BCFF)
+val PurpleGrey80 = Color(0xFFCCC2DC)
+val Pink80 = Color(0xFFEFB8C8)
+val Purple40 = Color(0xFF6650a4)
+val PurpleGrey40 = Color(0xFF625b71)
+val Pink40 = Color(0xFF7D5260)
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/ui/theme/Theme.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.ui.theme
+
+import android.app.Activity
+import android.os.Build
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Shapes
+import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.dp
+
+private val DarkColorScheme = darkColorScheme(
+    primary = PopMint,
+    secondary = PopBlue,
+    tertiary = PopSalmon,
+    background = Color(0xFF121212),
+    surface = PopDarkSurface,
+    surfaceVariant = PopDarkSurface,
+    onSurfaceVariant = PopLightText,
+    error = PopSalmon,
+    onPrimary = Color.Black,
+    onBackground = Color.White,
+    onSurface = Color.White
+)
+
+private val LightColorScheme = lightColorScheme(
+    primary = PopMint,
+    secondary = PopBlue,
+    tertiary = PopSalmon,
+    background = PopCream,
+    surface = Color.White,
+    surfaceVariant = Color(0xFFF0F0F0),
+    onSurfaceVariant = PopDarkText,
+    error = PopSalmon,
+    onPrimary = Color.White,
+    onBackground = PopDarkText,
+    onSurface = PopDarkText
+)
+
+val PopShapes = Shapes(
+    extraSmall = RoundedCornerShape(8.dp),
+    small = RoundedCornerShape(12.dp),
+    medium = RoundedCornerShape(16.dp),
+    large = RoundedCornerShape(24.dp),
+    extraLarge = RoundedCornerShape(32.dp)
+)
+
+@Composable
+fun ArbitrelloTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    dynamicColor: Boolean = true, // Enabled for Material 3 Dynamic Colors support
+    content: @Composable () -> Unit
+) {
+    val colorScheme = when {
+        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+            val context = LocalContext.current
+            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        darkTheme -> DarkColorScheme
+        else -> LightColorScheme
+    }
+
+    MaterialTheme(
+        colorScheme = colorScheme,
+        typography = Typography,
+        shapes = PopShapes,
+        content = content
+    )
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/ui/theme/Type.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.ui.theme
+
+import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
+
+val Typography = Typography(
+    headlineLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 32.sp,
+        lineHeight = 40.sp,
+        letterSpacing = 0.sp
+    ),
+    headlineSmall = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Bold,
+        fontSize = 24.sp,
+        lineHeight = 32.sp,
+        letterSpacing = 0.sp
+    ),
+    titleLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 22.sp,
+        lineHeight = 28.sp,
+        letterSpacing = 0.sp
+    ),
+    bodyLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.Normal,
+        fontSize = 16.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.5.sp
+    ),
+    labelLarge = TextStyle(
+        fontFamily = FontFamily.Default,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.1.sp
+    )
+)
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/ui/timer/TimerHeader.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.ui.timer
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.k4o.arbitrello.ui.theme.PopMint
+import com.k4o.arbitrello.ui.theme.PopSalmon
+
+/**
+ * Pasek nagłówka timera zintegrowany z ArbiterScreen.
+ * Zawiera sterowanie czasem, informację o graczu oraz przycisk zamknięcia.
+ */
+@Composable
+fun TimerHeader(viewModel: TimerViewModel) {
+    val state by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+
+    // Animacja pulsowania dla stanu końca czasu
+    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+    val pulseAlpha by infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 0.5f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(400, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "alpha_anim"
+    )
+
+    // Logika kolorystyki tła
+    val baseColor = when {
+        state.isEcoMode -> Color.Black
+        state.isTimeUp -> PopSalmon
+        !state.isRunning -> Color.Gray
+        state.timeLeftMs < 10000 -> PopSalmon
+        else -> PopMint
+    }
+
+    val animatedBgColor by animateColorAsState(
+        targetValue = if (state.isTimeUp && !state.isEcoMode) baseColor.copy(alpha = pulseAlpha) else baseColor,
+        animationSpec = tween(400),
+        label = "color_anim"
+    )
+
+    // Reakcja na koniec czasu - wywołanie wibracji (3 sygnały)
+    LaunchedEffect(state.isTimeUp) {
+        if (state.isTimeUp) {
+            viewModel.vibratePhone(context)
+        }
+    }
+
+    // Formatowanie czasu MM:SS
+    val minutes = (state.timeLeftMs / 1000) / 60
+    val seconds = (state.timeLeftMs / 1000) % 60
+    val timeString = String.format("%02d:%02d", minutes, seconds)
+
+    Row(
+        modifier = Modifier
+            .statusBarsPadding()
+            .fillMaxWidth()
+            .heightIn(min = 64.dp)
+            .background(animatedBgColor)
+            .clickable {
+                // Szybka pauza/wznowienie przy kliknięciu w tło
+                if (state.isRunning) viewModel.pauseTimer() else viewModel.startTimer()
+            }
+            .padding(horizontal = 24.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        // Lewa strona: Informacja o graczu i przycisk zmiany
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column {
+                Text(
+                    text = "GRACZ ${state.activePlayerId} / ${state.totalPlayers}",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Black,
+                    color = Color.White
+                )
+                Text(
+                    text = when {
+                        state.isTimeUp -> "CZAS MINĄŁ"
+                        state.isRunning -> "W TRAKCIE"
+                        else -> "PAUZA"
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White.copy(alpha = 0.8f)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            IconButton(
+                onClick = { viewModel.nextPlayer() },
+                colors = IconButtonDefaults.iconButtonColors(contentColor = Color.White)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.ArrowForward,
+                    contentDescription = "Następny Gracz",
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        }
+
+        // Prawa strona: Stop, Czas i przycisk Start (jeśli pauza)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.End
+        ) {
+            // Przycisk STOP
+            IconButton(
+                onClick = { viewModel.stopAndHide() },
+                modifier = Modifier.size(48.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(18.dp)
+                        .background(Color.White, RoundedCornerShape(2.dp))
+                )
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Tekst czasu z poprawionym wyrównaniem
+            Box(
+                modifier = Modifier.align(Alignment.CenterVertically),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = timeString,
+                    style = MaterialTheme.typography.displaySmall.copy(
+                        fontSize = 36.sp,
+                        fontWeight = FontWeight.Black,
+                        platformStyle = PlatformTextStyle(includeFontPadding = false),
+                        lineHeightStyle = LineHeightStyle(
+                            alignment = LineHeightStyle.Alignment.Center,
+                            trim = LineHeightStyle.Trim.Both
+                        )
+                    ),
+                    color = Color.White
+                )
+            }
+
+            // Przycisk START pojawiający się tylko gdy timer nie działa
+            if (!state.isRunning && !state.isTimeUp) {
+                Spacer(modifier = Modifier.width(16.dp))
+                IconButton(
+                    onClick = { viewModel.startTimer() }
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = "Uruchom Timer",
+                        tint = Color.White,
+                        modifier = Modifier.size(32.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/ui/timer/TimerScreen.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.ui.timer
+
+import android.app.Activity
+import android.view.WindowManager
+import androidx.compose.animation.*
+import androidx.compose.animation.core.*
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.k4o.arbitrello.ui.theme.PopMint
+import com.k4o.arbitrello.ui.theme.PopSalmon
+import com.k4o.arbitrello.ui.components.PopButton
+
+/**
+ * Ekran minutnika z animacjami i obsługą gestów.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun TimerScreen(viewModel: TimerViewModel) {
+    val state by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
+
+    var showTimerSetup by remember { mutableStateOf(false) }
+
+    // Utrzymywanie włączonego ekranu podczas gry
+    DisposableEffect(Unit) {
+        val window = (context as? Activity)?.window
+        window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        onDispose {
+            window?.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+    }
+
+    // Dialog ustawiania sesji (czas i gracze)
+    if (showTimerSetup) {
+        TimerSetupDialog(
+            initialEcoMode = state.isEcoMode,
+            onDismiss = { showTimerSetup = false },
+            onStart = { minutes, players, isEco ->
+                viewModel.setEcoMode(isEco)
+                viewModel.setupSession(minutes, players)
+                showTimerSetup = false
+            }
+        )
+    }
+
+    // Animacja pulsowania tła po zakończeniu czasu
+    val infiniteTransition = rememberInfiniteTransition(label = "timer_effects")
+    val flashColor by infiniteTransition.animateColor(
+        initialValue = PopSalmon,
+        targetValue = Color.White,
+        animationSpec = infiniteRepeatable(
+            animation = tween(300, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "flash_bg"
+    )
+
+    // Animacja efektu "shake" (drgania)
+    val shakeOffset by infiniteTransition.animateFloat(
+        initialValue = -6f,
+        targetValue = 6f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(40, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "shake_offset"
+    )
+
+    // AMOLED: Czysta czerń
+    val currentBgColor = when {
+        state.isEcoMode -> Color.Black
+        state.isTimeUp -> flashColor
+        else -> MaterialTheme.colorScheme.background
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(currentBgColor)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxHeight().padding(vertical = 40.dp)
+        ) {
+            // Nagłówek gracza
+            Text(
+                text = "GRACZ ${state.activePlayerId}",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Black,
+                color = if (state.isEcoMode) Color.White else if (state.isTimeUp) Color.Black else MaterialTheme.colorScheme.onBackground
+            )
+
+            // Centralny licznik z okręgiem (obsługa kliknięcia i przytrzymania)
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .size(300.dp)
+                    .graphicsLayer {
+                        if (state.isTimeUp) {
+                            translationX = shakeOffset
+                            translationY = shakeOffset
+                        }
+                    }
+                    .clip(CircleShape)
+                    .combinedClickable(
+                        onClick = {
+                            if (state.isRunning) viewModel.pauseTimer() else viewModel.startTimer()
+                        },
+                        onLongClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            viewModel.nextPlayer()
+                        }
+                    )
+            ) {
+                // Wizualizacja postępu
+                CircularProgressIndicator(
+                    progress = { state.timeLeftMs.toFloat() / state.totalTimeMs.toFloat() },
+                    modifier = Modifier.fillMaxSize(),
+                    color = when {
+                        state.isEcoMode -> Color.White
+                        state.timeLeftMs < 10000 -> PopSalmon
+                        else -> PopMint
+                    },
+                    strokeWidth = 16.dp,
+                    trackColor = Color.LightGray.copy(alpha = 0.2f)
+                )
+
+                // Tekst czasu
+                Text(
+                    text = formatTime(state.timeLeftMs),
+                    style = MaterialTheme.typography.displayLarge.copy(
+                        fontSize = 80.sp,
+                        fontWeight = FontWeight.Black
+                    ),
+                    color = when {
+                        state.isEcoMode -> Color.White
+                        state.timeLeftMs < 10000 -> PopSalmon
+                        else -> MaterialTheme.colorScheme.onBackground
+                    }
+                )
+            }
+
+            // Panel sterowania
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                PopButton(
+                    onClick = { viewModel.nextPlayer() },
+                    text = "NASTĘPNY GRACZ",
+                    color = if (state.isEcoMode) Color.DarkGray else PopMint,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    PopButton(
+                        onClick = { viewModel.resetTimer() },
+                        text = "RESET",
+                        color = Color.Gray,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    PopButton(
+                        onClick = { showTimerSetup = true },
+                        text = "KONFIGURUJ",
+                        color = Color.DarkGray,
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Formatuje milisekundy na format MM:SS.
+ */
+private fun formatTime(ms: Long): String {
+    val totalSeconds = ms / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "%02d:%02d".format(minutes, seconds)
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/ui/timer/TimerViewModel.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.ui.timer
+
+import android.content.Context
+import android.os.Build
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
+import androidx.lifecycle.SavedStateHandle
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.isActive
+import javax.inject.Inject
+
+data class TimerUiState(
+    val timeLeftMs: Long = 60000L,
+    val totalTimeMs: Long = 60000L,
+    val isRunning: Boolean = false,
+    val isTimeUp: Boolean = false,
+    val isEcoMode: Boolean = false,
+    val activePlayerId: Int = 1,
+    val totalPlayers: Int = 2,
+    val isTimerVisible: Boolean = false
+)
+
+@HiltViewModel
+class TimerViewModel @Inject constructor(
+    private val savedStateHandle: SavedStateHandle
+) : ViewModel() {
+
+    companion object {
+        private const val KEY_TIME_LEFT = "TIME_LEFT"
+        private const val KEY_ACTIVE_PLAYER = "ACTIVE_PLAYER"
+        private const val KEY_IS_RUNNING = "IS_RUNNING"
+        private const val KEY_TOTAL_TIME = "TOTAL_TIME"
+        private const val KEY_TOTAL_PLAYERS = "TOTAL_PLAYERS"
+        private const val KEY_IS_VISIBLE = "IS_VISIBLE"
+        private const val KEY_ECO_MODE = "ECO_MODE"
+    }
+
+    private val _uiState = MutableStateFlow(
+        TimerUiState(
+            timeLeftMs = savedStateHandle[KEY_TIME_LEFT] ?: 60000L,
+            totalTimeMs = savedStateHandle[KEY_TOTAL_TIME] ?: 60000L,
+            activePlayerId = savedStateHandle[KEY_ACTIVE_PLAYER] ?: 1,
+            totalPlayers = savedStateHandle[KEY_TOTAL_PLAYERS] ?: 2,
+            isRunning = false, // Managed by job
+            isTimerVisible = savedStateHandle[KEY_IS_VISIBLE] ?: false,
+            isEcoMode = savedStateHandle[KEY_ECO_MODE] ?: false
+        )
+    )
+    val uiState: StateFlow<TimerUiState> = _uiState.asStateFlow()
+
+    private var timerJob: Job? = null
+
+    init {
+        // Restore running state after process death
+        if (savedStateHandle.get<Boolean>(KEY_IS_RUNNING) == true) {
+            startTimer()
+        }
+    }
+
+    fun setupSession(minutes: Int, players: Int) {
+        timerJob?.cancel()
+        val totalMs = minutes * 60 * 1000L
+        _uiState.update { it.copy(
+            totalTimeMs = totalMs,
+            timeLeftMs = totalMs,
+            totalPlayers = players,
+            activePlayerId = 1,
+            isRunning = false,
+            isTimeUp = false,
+            isTimerVisible = true
+        ) }
+        saveState()
+    }
+
+    private fun saveState() {
+        val state = _uiState.value
+        savedStateHandle[KEY_TIME_LEFT] = state.timeLeftMs
+        savedStateHandle[KEY_TOTAL_TIME] = state.totalTimeMs
+        savedStateHandle[KEY_ACTIVE_PLAYER] = state.activePlayerId
+        savedStateHandle[KEY_TOTAL_PLAYERS] = state.totalPlayers
+        savedStateHandle[KEY_IS_RUNNING] = state.isRunning
+        savedStateHandle[KEY_IS_VISIBLE] = state.isTimerVisible
+        savedStateHandle[KEY_ECO_MODE] = state.isEcoMode
+    }
+
+    fun toggleEcoMode() {
+        _uiState.update { it.copy(isEcoMode = !it.isEcoMode) }
+        saveState()
+    }
+
+    fun setEcoMode(enabled: Boolean) {
+        _uiState.update { it.copy(isEcoMode = enabled) }
+        saveState()
+    }
+
+    fun toggleVisibility(visible: Boolean) {
+        _uiState.update { it.copy(isTimerVisible = visible) }
+        if (!visible) pauseTimer()
+        saveState()
+    }
+
+    fun stopAndHide() {
+        pauseTimer()
+        resetTimer()
+        toggleVisibility(false)
+    }
+
+    fun startTimer() {
+        timerJob?.cancel()
+        if (_uiState.value.isTimeUp) return
+
+        _uiState.update { it.copy(isRunning = true) }
+        saveState()
+
+        timerJob = viewModelScope.launch {
+            while (isActive && _uiState.value.timeLeftMs > 0) {
+                delay(100L)
+                _uiState.update { state ->
+                    val newTime = (state.timeLeftMs - 100L).coerceAtLeast(0L)
+                    state.copy(timeLeftMs = newTime)
+                }
+                // Sync important tick state
+                savedStateHandle[KEY_TIME_LEFT] = _uiState.value.timeLeftMs
+            }
+            if (_uiState.value.timeLeftMs <= 0) {
+                onTimeUp()
+            }
+        }
+    }
+
+    fun pauseTimer() {
+        timerJob?.cancel()
+        _uiState.update { it.copy(isRunning = false) }
+        saveState()
+    }
+
+    fun resetTimer() {
+        pauseTimer()
+        _uiState.update { it.copy(
+            timeLeftMs = it.totalTimeMs,
+            isRunning = false,
+            isTimeUp = false
+        ) }
+        saveState()
+    }
+
+    fun nextPlayer() {
+        timerJob?.cancel()
+        _uiState.update { state ->
+            val nextId = if (state.activePlayerId >= state.totalPlayers) 1 else state.activePlayerId + 1
+            state.copy(
+                activePlayerId = nextId,
+                timeLeftMs = state.totalTimeMs,
+                isTimeUp = false,
+                isRunning = false
+            )
+        }
+        saveState()
+        startTimer()
+    }
+
+    fun vibratePhone(context: Context) {
+        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+            vibratorManager.defaultVibrator
+        } else {
+            @Suppress("DEPRECATION")
+            context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+        }
+
+        val timings = longArrayOf(0, 500, 300, 500, 300, 500)
+        val amplitudes = intArrayOf(0, 255, 0, 255, 0, 255)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            vibrator.vibrate(VibrationEffect.createWaveform(timings, amplitudes, -1))
+        } else {
+            @Suppress("DEPRECATION")
+            vibrator.vibrate(timings, -1)
+        }
+    }
+
+    private fun onTimeUp() {
+        _uiState.update { it.copy(isRunning = false, isTimeUp = true) }
+        saveState()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        timerJob?.cancel()
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/java/com/k4o/arbitrello/ui/timer/TimeSetupDialog.kt ---
+// ==========================================
+
+package com.k4o.arbitrello.ui.timer
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import com.k4o.arbitrello.ui.components.PopButton
+import com.k4o.arbitrello.ui.theme.PopSalmon
+import com.k4o.arbitrello.ui.theme.PopMint
+
+/**
+ * Dialog konfiguracji sesji timera (czas i liczba graczy).
+ */
+@Composable
+fun TimerSetupDialog(
+    initialEcoMode: Boolean,
+    onDismiss: () -> Unit,
+    onStart: (minutes: Int, players: Int, isEco: Boolean) -> Unit
+) {
+    var minutes by remember { mutableFloatStateOf(1f) }
+    var players by remember { mutableFloatStateOf(2f) }
+    var isEco by remember { mutableStateOf(initialEcoMode) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = MaterialTheme.shapes.large,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "KONFIGURACJA SESJI",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Black,
+                    color = PopSalmon
+                )
+
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Czas rundy: ${minutes.toInt()} min",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Slider(
+                        value = minutes,
+                        onValueChange = { minutes = it },
+                        valueRange = 1f..5f,
+                        steps = 3,
+                        colors = SliderDefaults.colors(
+                            thumbColor = PopMint,
+                            activeTrackColor = PopMint
+                        )
+                    )
+                }
+
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Liczba graczy: ${players.toInt()}",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Slider(
+                        value = players,
+                        onValueChange = { players = it },
+                        valueRange = 2f..4f,
+                        steps = 1,
+                        colors = SliderDefaults.colors(
+                            thumbColor = PopMint,
+                            activeTrackColor = PopMint
+                        )
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Tryb Eco (AMOLED)",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Switch(
+                        checked = isEco,
+                        onCheckedChange = { isEco = it },
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = PopMint,
+                            checkedTrackColor = PopMint.copy(alpha = 0.5f)
+                        )
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    PopButton(
+                        onClick = onDismiss,
+                        text = "ANULUJ",
+                        color = Color.Gray,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    PopButton(
+                        onClick = {
+                            onStart(minutes.toInt(), players.toInt(), isEco)
+                        },
+                        text = "URUCHOM TIMER",
+                        color = PopSalmon,
+                        modifier = Modifier.weight(1.5f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ==========================================
+// --- File: app/src/main/res/drawable/ic_launcher_background.xml ---
+// ==========================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#3DDC84"
+        android:pathData="M0,0h108v108h-108z" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M9,0L9,108"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M19,0L19,108"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M29,0L29,108"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M39,0L39,108"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M49,0L49,108"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M59,0L59,108"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M69,0L69,108"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M79,0L79,108"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M89,0L89,108"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M99,0L99,108"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M0,9L108,9"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M0,19L108,19"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M0,29L108,29"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M0,39L108,39"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M0,49L108,49"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M0,59L108,59"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M0,69L108,69"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M0,79L108,79"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M0,89L108,89"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M0,99L108,99"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M19,29L89,29"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M19,39L89,39"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M19,49L89,49"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M19,59L89,59"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M19,69L89,69"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M19,79L89,79"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M29,19L29,89"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M39,19L39,89"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M49,19L49,89"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M59,19L59,89"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M69,19L69,89"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+    <path
+        android:fillColor="#00000000"
+        android:pathData="M79,19L79,89"
+        android:strokeWidth="0.8"
+        android:strokeColor="#33FFFFFF" />
+</vector>
+
+
+// ==========================================
+// --- File: app/src/main/res/drawable/ic_launcher_foreground.xml ---
+// ==========================================
+
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M31,63.928c0,0 6.4,-11 12.1,-13.1c7.2,-2.6 26,-1.4 26,-1.4l38.1,38.1L107,108.928l-32,-1L31,63.928z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endX="85.84757"
+                android:endY="92.4963"
+                android:startX="42.9492"
+                android:startY="49.59793"
+                android:type="linear">
+                <item
+                    android:color="#44000000"
+                    android:offset="0.0" />
+                <item
+                    android:color="#00000000"
+                    android:offset="1.0" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillType="nonZero"
+        android:pathData="M65.3,45.828l3.8,-6.6c0.2,-0.4 0.1,-0.9 -0.3,-1.1c-0.4,-0.2 -0.9,-0.1 -1.1,0.3l-3.9,6.7c-6.3,-2.8 -13.4,-2.8 -19.7,0l-3.9,-6.7c-0.2,-0.4 -0.7,-0.5 -1.1,-0.3C38.8,38.328 38.7,38.828 38.9,39.228l3.8,6.6C36.2,49.428 31.7,56.028 31,63.928h46C76.3,56.028 71.8,49.428 65.3,45.828zM43.4,57.328c-0.8,0 -1.5,-0.5 -1.8,-1.2c-0.3,-0.7 -0.1,-1.5 0.4,-2.1c0.5,-0.5 1.4,-0.7 2.1,-0.4c0.7,0.3 1.2,1 1.2,1.8C45.3,56.528 44.5,57.328 43.4,57.328L43.4,57.328zM64.6,57.328c-0.8,0 -1.5,-0.5 -1.8,-1.2s-0.1,-1.5 0.4,-2.1c0.5,-0.5 1.4,-0.7 2.1,-0.4c0.7,0.3 1.2,1 1.2,1.8C66.5,56.528 65.6,57.328 64.6,57.328L64.6,57.328z"
+        android:strokeWidth="1"
+        android:strokeColor="#00000000" />
+</vector>
+
+// ==========================================
+// --- File: app/src/main/res/mipmap-anydpi/ic_launcher.xml ---
+// ==========================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>
+
+// ==========================================
+// --- File: app/src/main/res/mipmap-anydpi/ic_launcher_round.xml ---
+// ==========================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@drawable/ic_launcher_background" />
+    <foreground android:drawable="@drawable/ic_launcher_foreground" />
+    <monochrome android:drawable="@drawable/ic_launcher_foreground" />
+</adaptive-icon>
+
+// ==========================================
+// --- File: app/src/main/res/raw/lottie_error.json ---
+// ==========================================
+
+{"nm":"Main Scene","ddd":0,"h":335,"w":300,"meta":{"g":"@lottiefiles/creator 1.69.2"},"layers":[{"ty":4,"nm":"Shape Layer 9","sr":1,"st":0,"op":75.0750750750751,"ip":0,"hd":false,"ddd":0,"bm":0,"hasMask":false,"ao":0,"ks":{"a":{"a":0,"k":[-7.75,0.125,0],"ix":1},"s":{"a":1,"k":[{"o":{"x":0.333,"y":0},"i":{"x":0.667,"y":1},"s":[181.14,0,100],"t":28.028},{"s":[181.14,110.579,100],"t":38.0380859375}],"ix":6},"sk":{"a":0,"k":0},"p":{"a":0,"k":[150,167,0],"ix":2},"r":{"a":1,"k":[{"o":{"x":0.333,"y":0},"i":{"x":0.413,"y":0.987},"s":[90],"t":38.038},{"o":{"x":0.167,"y":0},"i":{"x":0.833,"y":1},"s":[35],"t":49.049},{"s":[45],"t":52.0517578125}],"ix":10},"sa":{"a":0,"k":0},"o":{"a":0,"k":100,"ix":11}},"shapes":[{"ty":"gr","bm":0,"hd":false,"mn":"ADBE Vector Group","nm":"Rectangle 1","ix":1,"cix":2,"np":3,"it":[{"ty":"rc","bm":0,"hd":false,"mn":"ADBE Vector Shape - Rect","nm":"Rectangle Path 1","d":1,"p":{"a":0,"k":[0,0],"ix":3},"r":{"a":0,"k":0,"ix":4},"s":{"a":0,"k":[12,108.75],"ix":2}},{"ty":"fl","bm":0,"hd":false,"mn":"ADBE Vector Graphic - Fill","nm":"Fill 1","c":{"a":0,"k":[1,1,1],"ix":4},"r":1,"o":{"a":0,"k":100,"ix":5}},{"ty":"tr","a":{"a":0,"k":[0,0],"ix":1},"s":{"a":0,"k":[100,97.166],"ix":3},"sk":{"a":0,"k":0,"ix":4},"p":{"a":0,"k":[-7.75,0.125],"ix":2},"r":{"a":0,"k":0,"ix":6},"sa":{"a":0,"k":0,"ix":5},"o":{"a":0,"k":100,"ix":7}}]}],"ind":1},{"ty":4,"nm":"Shape Layer 8","sr":1,"st":0,"op":75.0750750750751,"ip":0,"hd":false,"ddd":0,"bm":0,"hasMask":false,"ao":0,"ks":{"a":{"a":0,"k":[-7.75,0.125,0],"ix":1},"s":{"a":1,"k":[{"o":{"x":0.333,"y":0},"i":{"x":0.667,"y":1},"s":[181.14,0,100],"t":28.028},{"s":[181.14,110.579,100],"t":38.0380859375}],"ix":6},"sk":{"a":0,"k":0},"p":{"a":0,"k":[150,167,0],"ix":2},"r":{"a":1,"k":[{"o":{"x":0.333,"y":0},"i":{"x":0.413,"y":0.995},"s":[90],"t":38.038},{"o":{"x":0.167,"y":0},"i":{"x":0.833,"y":1},"s":[-55],"t":49.049},{"s":[-45],"t":52.0517578125}],"ix":10},"sa":{"a":0,"k":0},"o":{"a":0,"k":100,"ix":11}},"shapes":[{"ty":"gr","bm":0,"hd":false,"mn":"ADBE Vector Group","nm":"Rectangle 1","ix":1,"cix":2,"np":3,"it":[{"ty":"rc","bm":0,"hd":false,"mn":"ADBE Vector Shape - Rect","nm":"Rectangle Path 1","d":1,"p":{"a":0,"k":[0,0],"ix":3},"r":{"a":0,"k":0,"ix":4},"s":{"a":0,"k":[12,108.75],"ix":2}},{"ty":"fl","bm":0,"hd":false,"mn":"ADBE Vector Graphic - Fill","nm":"Fill 1","c":{"a":0,"k":[1,1,1],"ix":4},"r":1,"o":{"a":0,"k":100,"ix":5}},{"ty":"tr","a":{"a":0,"k":[0,0],"ix":1},"s":{"a":0,"k":[100,97.166],"ix":3},"sk":{"a":0,"k":0,"ix":4},"p":{"a":0,"k":[-7.75,0.125],"ix":2},"r":{"a":0,"k":0,"ix":6},"sa":{"a":0,"k":0,"ix":5},"o":{"a":0,"k":100,"ix":7}}]}],"ind":2},{"ty":4,"nm":"Shape Layer 10","sr":1,"st":2.002002002002,"op":75.0750750750751,"ip":2.002002002002,"hd":false,"ddd":0,"bm":0,"hasMask":false,"ao":0,"ks":{"a":{"a":0,"k":[-7.75,0.125,0],"ix":1},"s":{"a":1,"k":[{"o":{"x":0.333,"y":0},"i":{"x":0.667,"y":1},"s":[181.14,0,100],"t":30.03},{"s":[181.14,110.579,100],"t":40.040087939502}],"ix":6},"sk":{"a":0,"k":0},"p":{"a":0,"k":[150,167,0],"ix":2},"r":{"a":1,"k":[{"o":{"x":0.333,"y":0},"i":{"x":0.413,"y":0.995},"s":[90],"t":40.04},{"o":{"x":0.167,"y":0},"i":{"x":0.833,"y":1},"s":[-55],"t":51.051},{"s":[-45],"t":54.053759814502}],"ix":10},"sa":{"a":0,"k":0},"o":{"a":0,"k":60,"ix":11}},"shapes":[{"ty":"gr","bm":0,"hd":false,"mn":"ADBE Vector Group","nm":"Rectangle 1","ix":1,"cix":2,"np":3,"it":[{"ty":"rc","bm":0,"hd":false,"mn":"ADBE Vector Shape - Rect","nm":"Rectangle Path 1","d":1,"p":{"a":0,"k":[0,0],"ix":3},"r":{"a":0,"k":0,"ix":4},"s":{"a":0,"k":[12,108.75],"ix":2}},{"ty":"fl","bm":0,"hd":false,"mn":"ADBE Vector Graphic - Fill","nm":"Fill 1","c":{"a":0,"k":[1,1,1],"ix":4},"r":1,"o":{"a":0,"k":100,"ix":5}},{"ty":"tr","a":{"a":0,"k":[0,0],"ix":1},"s":{"a":0,"k":[100,97.166],"ix":3},"sk":{"a":0,"k":0,"ix":4},"p":{"a":0,"k":[-7.75,0.125],"ix":2},"r":{"a":0,"k":0,"ix":6},"sa":{"a":0,"k":0,"ix":5},"o":{"a":0,"k":100,"ix":7}}]}],"ind":3},{"ty":4,"nm":"Shape Layer 11","sr":1,"st":3.003003003003,"op":75.0750750750751,"ip":3.003003003003,"hd":false,"ddd":0,"bm":0,"hasMask":false,"ao":0,"ks":{"a":{"a":0,"k":[-7.75,0.125,0],"ix":1},"s":{"a":1,"k":[{"o":{"x":0.333,"y":0},"i":{"x":0.667,"y":1},"s":[181.14,0,100],"t":31.031},{"s":[181.14,110.579,100],"t":41.041088940503}],"ix":6},"sk":{"a":0,"k":0},"p":{"a":0,"k":[150,167,0],"ix":2},"r":{"a":1,"k":[{"o":{"x":0.333,"y":0},"i":{"x":0.413,"y":0.995},"s":[90],"t":41.041},{"o":{"x":0.167,"y":0},"i":{"x":0.833,"y":1},"s":[-55],"t":52.052},{"s":[-45],"t":55.054760815503}],"ix":10},"sa":{"a":0,"k":0},"o":{"a":0,"k":20,"ix":11}},"shapes":[{"ty":"gr","bm":0,"hd":false,"mn":"ADBE Vector Group","nm":"Rectangle 1","ix":1,"cix":2,"np":3,"it":[{"ty":"rc","bm":0,"hd":false,"mn":"ADBE Vector Shape - Rect","nm":"Rectangle Path 1","d":1,"p":{"a":0,"k":[0,0],"ix":3},"r":{"a":0,"k":0,"ix":4},"s":{"a":0,"k":[12,108.75],"ix":2}},{"ty":"fl","bm":0,"hd":false,"mn":"ADBE Vector Graphic - Fill","nm":"Fill 1","c":{"a":0,"k":[1,1,1],"ix":4},"r":1,"o":{"a":0,"k":100,"ix":5}},{"ty":"tr","a":{"a":0,"k":[0,0],"ix":1},"s":{"a":0,"k":[100,97.166],"ix":3},"sk":{"a":0,"k":0,"ix":4},"p":{"a":0,"k":[-7.75,0.125],"ix":2},"r":{"a":0,"k":0,"ix":6},"sa":{"a":0,"k":0,"ix":5},"o":{"a":0,"k":100,"ix":7}}]}],"ind":4},{"ty":4,"nm":"Shape Layer 3","sr":1,"st":7.00700700700701,"op":75.0750750750751,"ip":7.00700700700701,"hd":false,"ddd":0,"bm":0,"hasMask":false,"ao":0,"ks":{"a":{"a":0,"k":[-4,-8.5,0],"ix":1},"s":{"a":1,"k":[{"o":{"x":0.48,"y":0},"i":{"x":0.471,"y":1},"s":[0,0,100],"t":7.007},{"s":[78.151,78.151,100],"t":25.024585132007}],"ix":6},"sk":{"a":0,"k":0},"p":{"a":0,"k":[150,167,0],"ix":2},"r":{"a":0,"k":0,"ix":10},"sa":{"a":0,"k":0},"o":{"a":0,"k":100,"ix":11}},"shapes":[{"ty":"gr","bm":0,"hd":false,"mn":"ADBE Vector Group","nm":"Ellipse 1","ix":1,"cix":2,"np":3,"it":[{"ty":"el","bm":0,"hd":false,"mn":"ADBE Vector Shape - Ellipse","nm":"Ellipse Path 1","d":1,"p":{"a":0,"k":[0,0],"ix":3},"s":{"a":0,"k":[238,238],"ix":2}},{"ty":"fl","bm":0,"hd":false,"mn":"ADBE Vector Graphic - Fill","nm":"Fill 1","c":{"a":0,"k":[0.8863,0.2902,0.2588],"ix":4},"r":1,"o":{"a":0,"k":100,"ix":5}},{"ty":"tr","a":{"a":0,"k":[0,0],"ix":1},"s":{"a":0,"k":[100,100],"ix":3},"sk":{"a":0,"k":0,"ix":4},"p":{"a":0,"k":[-4,-8.5],"ix":2},"r":{"a":0,"k":0,"ix":6},"sa":{"a":0,"k":0,"ix":5},"o":{"a":0,"k":100,"ix":7}}]}],"ind":5},{"ty":4,"nm":"Shape Layer 2","sr":1,"st":3.003003003003,"op":75.0750750750751,"ip":3.003003003003,"hd":false,"ddd":0,"bm":0,"hasMask":false,"ao":0,"ks":{"a":{"a":0,"k":[-4,-8.5,0],"ix":1},"s":{"a":1,"k":[{"o":{"x":0.48,"y":0},"i":{"x":0.471,"y":1},"s":[0,0,100],"t":3.003},{"s":[96.639,96.639,100],"t":21.020581128003}],"ix":6},"sk":{"a":0,"k":0},"p":{"a":0,"k":[150,167,0],"ix":2},"r":{"a":0,"k":0,"ix":10},"sa":{"a":0,"k":0},"o":{"a":0,"k":20,"ix":11}},"shapes":[{"ty":"gr","bm":0,"hd":false,"mn":"ADBE Vector Group","nm":"Ellipse 1","ix":1,"cix":2,"np":3,"it":[{"ty":"el","bm":0,"hd":false,"mn":"ADBE Vector Shape - Ellipse","nm":"Ellipse Path 1","d":1,"p":{"a":0,"k":[0,0],"ix":3},"s":{"a":0,"k":[238,238],"ix":2}},{"ty":"fl","bm":0,"hd":false,"mn":"ADBE Vector Graphic - Fill","nm":"Fill 1","c":{"a":0,"k":[1,0.4863,0.502],"ix":4},"r":1,"o":{"a":0,"k":100,"ix":5}},{"ty":"tr","a":{"a":0,"k":[0,0],"ix":1},"s":{"a":0,"k":[100,100],"ix":3},"sk":{"a":0,"k":0,"ix":4},"p":{"a":0,"k":[-4,-8.5],"ix":2},"r":{"a":0,"k":0,"ix":6},"sa":{"a":0,"k":0,"ix":5},"o":{"a":0,"k":100,"ix":7}}]}],"ind":6},{"ty":4,"nm":"Shape Layer 1","sr":1,"st":0,"op":75.0750750750751,"ip":0,"hd":false,"ddd":0,"bm":0,"hasMask":false,"ao":0,"ks":{"a":{"a":0,"k":[-4,-8.5,0],"ix":1},"s":{"a":1,"k":[{"o":{"x":0.48,"y":0},"i":{"x":0.471,"y":1},"s":[0,0,100],"t":0},{"s":[110.084,110.084,100],"t":18.017578125}],"ix":6},"sk":{"a":0,"k":0},"p":{"a":0,"k":[150,167,0],"ix":2},"r":{"a":0,"k":0,"ix":10},"sa":{"a":0,"k":0},"o":{"a":0,"k":10,"ix":11}},"shapes":[{"ty":"gr","bm":0,"hd":false,"mn":"ADBE Vector Group","nm":"Ellipse 1","ix":1,"cix":2,"np":3,"it":[{"ty":"el","bm":0,"hd":false,"mn":"ADBE Vector Shape - Ellipse","nm":"Ellipse Path 1","d":1,"p":{"a":0,"k":[0,0],"ix":3},"s":{"a":0,"k":[238,238],"ix":2}},{"ty":"fl","bm":0,"hd":false,"mn":"ADBE Vector Graphic - Fill","nm":"Fill 1","c":{"a":0,"k":[1,0.4863,0.502],"ix":4},"r":1,"o":{"a":0,"k":100,"ix":5}},{"ty":"tr","a":{"a":0,"k":[0,0],"ix":1},"s":{"a":0,"k":[100,100],"ix":3},"sk":{"a":0,"k":0,"ix":4},"p":{"a":0,"k":[-4,-8.5],"ix":2},"r":{"a":0,"k":0,"ix":6},"sa":{"a":0,"k":0,"ix":5},"o":{"a":0,"k":100,"ix":7}}]}],"ind":7}],"v":"5.7.0","fr":30,"op":75,"ip":0,"assets":[],"markers":[{"cm":"","tm":40.0400390625,"dr":0}]}
+
+// ==========================================
+// --- File: app/src/main/res/raw/lottie_success.json ---
+// ==========================================
+
+{"nm":"Main Scene","ddd":0,"h":335,"w":300,"meta":{"g":"@lottiefiles/creator 1.69.2"},"layers":[{"ty":4,"nm":"Shape Layer 4","sr":1,"st":18.000000733155,"op":396.000016129411,"ip":18.000000733155,"hd":false,"ddd":0,"bm":0,"hasMask":false,"ao":0,"ks":{"a":{"a":0,"k":[0,0,0],"ix":1},"s":{"a":0,"k":[96.429,96.429,100],"ix":6},"sk":{"a":0,"k":0},"p":{"a":0,"k":[148,185.5,0],"ix":2},"r":{"a":0,"k":0,"ix":10},"sa":{"a":0,"k":0},"o":{"a":0,"k":100,"ix":11}},"shapes":[{"ty":"gr","bm":0,"hd":false,"mn":"ADBE Vector Group","nm":"Shape 1","ix":1,"cix":2,"np":3,"it":[{"ty":"sh","bm":0,"hd":false,"mn":"ADBE Vector Shape - Group","nm":"Path 1","ix":1,"d":1,"ks":{"a":0,"k":{"c":false,"i":[[0,0],[0,0],[-17.136,27.185]],"o":[[13.086,7.272],[0,0],[0,0]],"v":[[-46.074,-6.315],[-6.815,15.5],[44.593,-66.056]]},"ix":2}},{"ty":"st","bm":0,"hd":false,"mn":"ADBE Vector Graphic - Stroke","nm":"Stroke 1","lc":2,"lj":2,"ml":1,"o":{"a":0,"k":100,"ix":4},"w":{"a":0,"k":25,"ix":5},"c":{"a":0,"k":[1,1,1],"ix":3}},{"ty":"tr","a":{"a":0,"k":[0,0],"ix":1},"s":{"a":0,"k":[100,100],"ix":3},"sk":{"a":0,"k":0,"ix":4},"p":{"a":0,"k":[-4,7],"ix":2},"r":{"a":0,"k":9.672,"ix":6},"sa":{"a":0,"k":0,"ix":5},"o":{"a":0,"k":100,"ix":7}}]},{"ty":"tm","bm":0,"hd":false,"mn":"ADBE Vector Filter - Trim","nm":"Trim Paths 1","ix":2,"e":{"a":0,"k":0,"ix":2},"o":{"a":0,"k":0,"ix":3},"s":{"a":1,"k":[{"o":{"x":0.471,"y":0.002},"i":{"x":0.148,"y":1},"s":[0],"t":18},{"s":[100],"t":38.0000015477717}],"ix":1},"m":1}],"ind":1},{"ty":4,"nm":"Shape Layer 3","sr":1,"st":7.00000028511585,"op":385.000015681372,"ip":7.00000028511585,"hd":false,"ddd":0,"bm":0,"hasMask":false,"ao":0,"ks":{"a":{"a":0,"k":[-4,-8.5,0],"ix":1},"s":{"a":1,"k":[{"o":{"x":0.48,"y":0},"i":{"x":0.471,"y":1},"s":[0,0,100],"t":7},{"s":[78.151,78.151,100],"t":25.0000010182709}],"ix":6},"sk":{"a":0,"k":0},"p":{"a":0,"k":[150,167,0],"ix":2},"r":{"a":0,"k":0,"ix":10},"sa":{"a":0,"k":0},"o":{"a":0,"k":100,"ix":11}},"shapes":[{"ty":"gr","bm":0,"hd":false,"mn":"ADBE Vector Group","nm":"Ellipse 1","ix":1,"cix":2,"np":3,"it":[{"ty":"el","bm":0,"hd":false,"mn":"ADBE Vector Shape - Ellipse","nm":"Ellipse Path 1","d":1,"p":{"a":0,"k":[0,0],"ix":3},"s":{"a":0,"k":[238,238],"ix":2}},{"ty":"fl","bm":0,"hd":false,"mn":"ADBE Vector Graphic - Fill","nm":"Fill 1","c":{"a":0,"k":[0.1255,0.7059,0.4745],"ix":4},"r":1,"o":{"a":0,"k":100,"ix":5}},{"ty":"tr","a":{"a":0,"k":[0,0],"ix":1},"s":{"a":0,"k":[100,100],"ix":3},"sk":{"a":0,"k":0,"ix":4},"p":{"a":0,"k":[-4,-8.5],"ix":2},"r":{"a":0,"k":0,"ix":6},"sa":{"a":0,"k":0,"ix":5},"o":{"a":0,"k":100,"ix":7}}]}],"ind":2},{"ty":4,"nm":"Shape Layer 2","sr":1,"st":3.00000012219251,"op":381.000015518448,"ip":3.00000012219251,"hd":false,"ddd":0,"bm":0,"hasMask":false,"ao":0,"ks":{"a":{"a":0,"k":[-4,-8.5,0],"ix":1},"s":{"a":1,"k":[{"o":{"x":0.48,"y":0},"i":{"x":0.471,"y":1},"s":[0,0,100],"t":3},{"s":[96.639,96.639,100],"t":21.0000008553475}],"ix":6},"sk":{"a":0,"k":0},"p":{"a":0,"k":[150,167,0],"ix":2},"r":{"a":0,"k":0,"ix":10},"sa":{"a":0,"k":0},"o":{"a":0,"k":20,"ix":11}},"shapes":[{"ty":"gr","bm":0,"hd":false,"mn":"ADBE Vector Group","nm":"Ellipse 1","ix":1,"cix":2,"np":3,"it":[{"ty":"el","bm":0,"hd":false,"mn":"ADBE Vector Shape - Ellipse","nm":"Ellipse Path 1","d":1,"p":{"a":0,"k":[0,0],"ix":3},"s":{"a":0,"k":[238,238],"ix":2}},{"ty":"fl","bm":0,"hd":false,"mn":"ADBE Vector Graphic - Fill","nm":"Fill 1","c":{"a":0,"k":[0.1255,0.7059,0.4745],"ix":4},"r":1,"o":{"a":0,"k":100,"ix":5}},{"ty":"tr","a":{"a":0,"k":[0,0],"ix":1},"s":{"a":0,"k":[100,100],"ix":3},"sk":{"a":0,"k":0,"ix":4},"p":{"a":0,"k":[-4,-8.5],"ix":2},"r":{"a":0,"k":0,"ix":6},"sa":{"a":0,"k":0,"ix":5},"o":{"a":0,"k":100,"ix":7}}]}],"ind":3},{"ty":4,"nm":"Shape Layer 1","sr":1,"st":0,"op":378.000015396256,"ip":0,"hd":false,"ddd":0,"bm":0,"hasMask":false,"ao":0,"ks":{"a":{"a":0,"k":[-4,-8.5,0],"ix":1},"s":{"a":1,"k":[{"o":{"x":0.48,"y":0},"i":{"x":0.471,"y":1},"s":[0,0,100],"t":0},{"s":[110.084,110.084,100],"t":18.000000733155}],"ix":6},"sk":{"a":0,"k":0},"p":{"a":0,"k":[150,167,0],"ix":2},"r":{"a":0,"k":0,"ix":10},"sa":{"a":0,"k":0},"o":{"a":0,"k":10,"ix":11}},"shapes":[{"ty":"gr","bm":0,"hd":false,"mn":"ADBE Vector Group","nm":"Ellipse 1","ix":1,"cix":2,"np":3,"it":[{"ty":"el","bm":0,"hd":false,"mn":"ADBE Vector Shape - Ellipse","nm":"Ellipse Path 1","d":1,"p":{"a":0,"k":[0,0],"ix":3},"s":{"a":0,"k":[238,238],"ix":2}},{"ty":"fl","bm":0,"hd":false,"mn":"ADBE Vector Graphic - Fill","nm":"Fill 1","c":{"a":0,"k":[0.1255,0.7059,0.4745],"ix":4},"r":1,"o":{"a":0,"k":100,"ix":5}},{"ty":"tr","a":{"a":0,"k":[0,0],"ix":1},"s":{"a":0,"k":[100,100],"ix":3},"sk":{"a":0,"k":0,"ix":4},"p":{"a":0,"k":[-4,-8.5],"ix":2},"r":{"a":0,"k":0,"ix":6},"sa":{"a":0,"k":0,"ix":5},"o":{"a":0,"k":100,"ix":7}}]}],"ind":4}],"v":"5.7.0","fr":29.9700012207031,"op":137.000005580124,"ip":0,"assets":[],"markers":[{"cm":"","tm":40.0000016292334,"dr":0}]}
+
+// ==========================================
+// --- File: app/src/main/res/values/colors.xml ---
+// ==========================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>
+
+// ==========================================
+// --- File: app/src/main/res/values/strings.xml ---
+// ==========================================
+
+<resources>
+    <string name="app_name">Arbitrello</string>
+</resources>
+
+// ==========================================
+// --- File: app/src/main/res/values/themes.xml ---
+// ==========================================
+
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.Arbitrello" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
+
+// ==========================================
+// --- File: app/src/main/res/xml/backup_rules.xml ---
+// ==========================================
+
+<?xml version="1.0" encoding="utf-8"?><!--
+   Sample backup rules file; uncomment and customize as necessary.
+   See https://developer.android.com/guide/topics/data/autobackup
+   for details.
+   Note: This file is ignored for devices older than API 31
+   See https://developer.android.com/about/versions/12/backup-restore
+-->
+<full-backup-content>
+    <!--
+   <include domain="sharedpref" path="."/>
+   <exclude domain="sharedpref" path="device.xml"/>
+-->
+</full-backup-content>
+
+// ==========================================
+// --- File: app/src/main/res/xml/data_extraction_rules.xml ---
+// ==========================================
+
+<?xml version="1.0" encoding="utf-8"?><!--
+   Sample data extraction rules file; uncomment and customize as necessary.
+   See https://developer.android.com/about/versions/12/backup-restore#xml-changes
+   for details.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <!-- TODO: Use <include> and <exclude> to control what is backed up.
+        <include .../>
+        <exclude .../>
+        -->
+    </cloud-backup>
+    <!--
+    <device-transfer>
+        <include .../>
+        <exclude .../>
+    </device-transfer>
+    -->
+</data-extraction-rules>
+
+// ==========================================
+// --- File: app/src/test/java/com/k4o/arbitrello/ExampleUnitTest.kt ---
+// ==========================================
+
+package com.k4o.arbitrello
+
+import org.junit.Test
+
+import org.junit.Assert.*
+
+/**
+ * Example local unit test, which will execute on the development machine (host).
+ *
+ * See [testing documentation](http://d.android.com/tools/testing).
+ */
+class ExampleUnitTest {
+    @Test
+    fun addition_isCorrect() {
+        assertEquals(4, 2 + 2)
+    }
+}
+
+// ==========================================
+// --- File: gradle/libs.versions.toml ---
+// ==========================================
+
+[versions]
+agp = "8.7.0"
+kotlin = "2.1.0"
+coreKtx = "1.13.1"
+junit = "4.13.2"
+junitVersion = "1.1.5"
+espressoCore = "3.5.1"
+lifecycleRuntimeKtx = "2.8.0"
+activityCompose = "1.9.0"
+composeBom = "2025.12.00"
+jsoup = "1.17.2"
+appcompat = "1.6.1"
+material = "1.12.0"
+lottie = "6.4.0"
+hilt = "2.54"
+hiltNavigationCompose = "1.2.0"
+room = "2.6.1"
+ksp = "2.1.0-1.0.29"
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
+androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
+androidx-lifecycle-runtime-compose = { group = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "lifecycleRuntimeKtx" }
+androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleRuntimeKtx" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+compose-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+
+# UI Libraries
+androidx-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+androidx-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }
+lottie-compose = { group = "com.airbnb.android", name = "lottie-compose", version.ref = "lottie" }
+
+# Hilt
+hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
+hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }
+androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltNavigationCompose" }
+
+# Room
+androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
+androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
+androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
+
+compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
+
+[plugins]
+androidApplication = { id = "com.android.application", version.ref = "agp" }
+kotlinAndroid = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+dagger-hilt-android = { id = "com.google.dagger.hilt.android", version.ref = "hilt" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+
+// ==========================================
+// --- File: gradle/wrapper/gradle-wrapper.properties ---
+// ==========================================
+
+#Tue Jan 06 12:25:15 CET 2026
+distributionBase=GRADLE_USER_HOME
+distributionPath=wrapper/dists
+distributionUrl=https\://services.gradle.org/distributions/gradle-8.11.1-bin.zip
+zipStoreBase=GRADLE_USER_HOME
+zipStorePath=wrapper/dists
+
+
+// ==========================================
+// --- File: gradle.properties ---
+// ==========================================
+
+# Project-wide Gradle settings.
+# IDE (e.g. Android Studio) users:
+# Gradle settings configured through the IDE *will override*
+# any settings specified in this file.
+# For more details on how to configure your build environment visit
+# http://www.gradle.org/docs/current/userguide/build_environment.html
+# Specifies the JVM arguments used for the daemon process.
+# The setting is particularly useful for tweaking memory settings.
+org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
+# When configured, Gradle will run in incubating parallel mode.
+# This option should only be used with decoupled projects. For more details, visit
+# https://developer.android.com/r/tools/gradle-multi-project-decoupled-projects
+# org.gradle.parallel=true
+# AndroidX package structure to make it clearer which packages are bundled with the
+# Android operating system, and which are packaged with your app's APK
+# https://developer.android.com/topic/libraries/support-library/androidx-rn
+android.useAndroidX=true
+# Kotlin code style for this project: "official" or "obsolete":
+kotlin.code.style=official
+# Enables namespacing of each library's R class so that its R class includes only the
+# resources declared in the library itself and none from the library's dependencies,
+# thereby reducing the size of the R class for that library
+android.nonTransitiveRClass=true
+
+// ==========================================
+// --- File: local.properties ---
+// ==========================================
+
+## This file is automatically generated by Android Studio.
+# Do not modify this file -- YOUR CHANGES WILL BE ERASED!
+#
+# This file should *NOT* be checked into Version Control Systems,
+# as it contains information specific to your local configuration.
+#
+# Location of the SDK. This is only used by Gradle.
+# For customization when using a Version Control System, please read the
+# header note.
+sdk.dir=C\:\\Users\\K4O\\AppData\\Local\\Android\\Sdk
+
+// ==========================================
+// --- File: package.json ---
+// ==========================================
+
+{
+  "name": "arbitrello",
+  "version": "1.0.0",
+  "description": "",
+  "main": "watcher.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "chokidar": "^5.0.0"
+  }
+}
+
+
+// ==========================================
+// --- File: watcher.config.json ---
+// ==========================================
+
+{
+  "watchFolder": "./",
+  "outputFile": "context_Arbitrello.txt",
+  "allowedExtensions": [
+    ".js",
+    ".jsx",
+    ".ts",
+    ".tsx",
+    ".css",
+    ".html",
+    ".json",
+    ".py",
+    ".java",
+    ".md",
+    ".kt",
+    ".xml",
+    ".gradle",
+    ".properties",
+    ".toml"
+  ],
+  "ignorePatterns": [
+    "node_modules",
+    ".git",
+    ".next",
+    "dist",
+    "build",
+    "package-lock.json",
+    "yarn.lock",
+    "context_Arbitrello.txt",
+    ".idea",
+    ".gradle"
+  ]
+}
+
+// ==========================================
+// --- File: watcher.js ---
+// ==========================================
+
+
+const fs = require('fs');
+const path = require('path');
+const chokidar = require('chokidar');
+
+// Domyślna konfiguracja (fallback)
+let CONFIG = {
+    watchFolder: './',
+    outputFile: 'context_bundle.txt',
+    allowedExtensions: ['.js', '.jsx', '.ts', '.tsx', '.css', '.html', '.json', '.py', '.md'],
+    ignorePatterns: ['node_modules', '.git', 'dist', 'build', 'package-lock.json']
+};
+
+try {
+    if (fs.existsSync('watcher.config.json')) {
+        const userConfig = JSON.parse(fs.readFileSync('watcher.config.json', 'utf8'));
+        CONFIG = { ...CONFIG, ...userConfig };
+    }
+    
+    // ZABEZPIECZENIE: Zawsze dodaj plik wyjściowy do ignorowanych
+    if (!CONFIG.ignorePatterns.includes(CONFIG.outputFile)) {
+        CONFIG.ignorePatterns.push(CONFIG.outputFile);
+    }
+    
+} catch (e) {
+    console.warn('⚠️ Nie udało się wczytać configu, używam domyślnego.');
+}
+
+let debounceTimer;
+
+const mergeFiles = () => {
+    console.log('🔄 Wykryto zmiany. Generowanie kontekstu...');
+    let fullContent = `--- PROJECT CONTEXT GENERATED AT ${new Date().toLocaleString()} ---\n\n`;
+    
+    fullContent += `// --- Configuration used: watcher.config.json ---\n`;
+    fullContent += JSON.stringify(CONFIG, null, 2) + '\n\n';
+
+    const walkSync = (dir, filelist = []) => {
+        const files = fs.readdirSync(dir);
+        files.forEach((file) => {
+            const filePath = path.join(dir, file);
+            const stat = fs.statSync(filePath);
+            
+            if (CONFIG.ignorePatterns.some(pattern => filePath.includes(pattern))) return;
+
+            if (stat.isDirectory()) {
+                walkSync(filePath, filelist);
+            } else {
+                if (CONFIG.allowedExtensions.includes(path.extname(file))) {
+                    filelist.push(filePath);
+                }
+            }
+        });
+        return filelist;
+    };
+
+    try {
+        const allFiles = walkSync(CONFIG.watchFolder);
+        allFiles.forEach(filePath => {
+            const content = fs.readFileSync(filePath, 'utf8');
+            const relativePath = path.relative('.', filePath).replace(/\\/g, '/');
+            fullContent += `\n// ==========================================\n// --- File: ${relativePath} ---\n// ==========================================\n\n${content}\n`;
+        });
+
+        fs.writeFileSync(CONFIG.outputFile, fullContent);
+        console.log(`✅ Zaktualizowano: ${CONFIG.outputFile} (${allFiles.length} plików)`);
+    } catch (err) {
+        console.error('❌ Błąd:', err.message);
+    }
+};
+
+const watcher = chokidar.watch(CONFIG.watchFolder, {
+    ignored: (path) => CONFIG.ignorePatterns.some(s => path.includes(s)),
+    persistent: true,
+    ignoreInitial: true
+});
+
+const handleEvent = () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(() => mergeFiles(), 300);
+};
+
+watcher.on('all', handleEvent);
+
+console.log(`👀 Watcher uruchomiony. Obserwuję folder: ${CONFIG.watchFolder}`);
+console.log(`📝 Plik wynikowy: ${CONFIG.outputFile}`);
+console.log(`💡 Edytuj 'watcher.config.json' aby zmienić ustawienia.`);
+mergeFiles();
+
